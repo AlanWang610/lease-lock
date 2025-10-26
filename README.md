@@ -31,7 +31,7 @@ Any role (lessor, lessee) can get_reading() for utilities, which provides an amo
 
 ## d. Technical Explanation
 
-Same as above in a
+https://www.loom.com/share/8d06fd11a2334c8b8407584c5fac4d00
 
 ## e. Demo site
 
