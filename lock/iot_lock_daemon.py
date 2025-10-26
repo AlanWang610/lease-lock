@@ -45,7 +45,7 @@ class LockDaemon:
         self.state_file = os.getenv("LOCK_STATE_FILE", ".lock_state.json")
         self.cursor_file = os.getenv("LOCK_CURSOR_FILE", ".lock_cursor.txt")
         
-        # Lock states: unit -> {"state": "LOCKED"|"UNLOCKED", "last_event": {...}}
+        # Lock states: lease_id -> {"state": "LOCKED"|"UNLOCKED", "last_event": {...}}
         self.locks: Dict[str, Dict[str, Any]] = {}
         
         if not self.contract_id:
@@ -89,15 +89,21 @@ class LockDaemon:
         except IOError as e:
             print(f"Error: Could not save cursor file {self.cursor_file}: {e}")
 
-    def apply_event(self, unit: str, ev_type: str, who: str, ts: str, event_id: str) -> None:
+    def apply_event(self, lease_id: str, ev_type: str, who: str, ts: str, event_id: str) -> None:
         """Apply an event to update lock state"""
-        prev_state = self.locks.get(unit, {"state": "LOCKED"})
+        prev_state = self.locks.get(lease_id, {"state": "LOCKED"})
         
         # Determine new state based on event type
-        if ev_type == "LeaseActivated":
+        # Contract emits "Activated" and "Delinq" events
+        if ev_type == "Activated":
             new_state = "UNLOCKED"
-        elif ev_type in ("Delinquent", "LeaseEnded"):
+        elif ev_type == "Delinq":
             new_state = "LOCKED"
+        elif ev_type in ("Delinquent", "LeaseEnded", "LeaseActivated"):  # Legacy compatibility
+            if ev_type == "LeaseActivated":
+                new_state = "UNLOCKED"
+            else:
+                new_state = "LOCKED"
         elif ev_type == "SubleaseGranted":
             # Optional: no state change for sublease granted
             return
@@ -106,7 +112,7 @@ class LockDaemon:
             return
         
         # Update lock state
-        self.locks[unit] = {
+        self.locks[lease_id] = {
             "state": new_state,
             "last_event": {
                 "type": ev_type,
@@ -121,7 +127,7 @@ class LockDaemon:
         
         # Log state change
         timestamp = datetime.utcnow().isoformat() + "Z"
-        print(f"[{timestamp}] {unit}: {prev_state['state']} -> {new_state} ({ev_type})")
+        print(f"[{timestamp}] lease_id={lease_id}: {prev_state['state']} -> {new_state} ({ev_type})")
         
         # Update mock lock if available
         if MOCK_LOCK_AVAILABLE:
@@ -131,7 +137,7 @@ class LockDaemon:
                 "ts": ts,
                 "id": event_id
             }
-            update_lock_state(unit, new_state, event_info)
+            update_lock_state(lease_id, new_state, event_info)
 
     def fetch_events(self, cursor: Optional[str] = None) -> Dict[str, Any]:
         """Fetch events from Stellar RPC"""
@@ -178,12 +184,12 @@ class LockDaemon:
         elif topics and len(topics) > 0:
             ev_type = str(topics[0])
         
-        # Unit is typically the second topic
-        unit = "unknown"
+        # Lease ID (or unit) is typically the second topic for Activated/Delinq events
+        lease_id = "unknown"
         if topic_texts and len(topic_texts) > 1:
-            unit = topic_texts[1]
+            lease_id = topic_texts[1]
         elif topics and len(topics) > 1:
-            unit = str(topics[1])
+            lease_id = str(topics[1])
         
         # Address is in the value field
         value = item.get("value", {})
@@ -193,7 +199,7 @@ class LockDaemon:
         ts = item.get("ts", "")
         event_id = item.get("pagingToken") or item.get("id", "")
         
-        return unit, ev_type, who, ts, event_id
+        return lease_id, ev_type, who, ts, event_id
 
     def run(self) -> None:
         """Main daemon loop"""
@@ -229,8 +235,8 @@ class LockDaemon:
                     
                     # Process events
                     for event in events:
-                        unit, ev_type, who, ts, event_id = self.parse_event(event)
-                        self.apply_event(unit, ev_type, who, ts, event_id)
+                        lease_id, ev_type, who, ts, event_id = self.parse_event(event)
+                        self.apply_event(lease_id, ev_type, who, ts, event_id)
                     
                     # Update cursor
                     next_cursor = result.get("cursor")
