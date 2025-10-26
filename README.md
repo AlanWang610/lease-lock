@@ -1,5 +1,7 @@
 ## a. Demo Video
 
+https://www.loom.com/share/38787b9c5b314aefba5afc8ce63186b9
+
 ## b. Screenshots
 
 ![Lease Tree](lease_tree_screenshot.png)
@@ -27,7 +29,9 @@ Each lease/sublease takes the form of a LeaseRegistry smart contract, which cont
 
 Any role (lessor, lessee) can get_reading() for utilities, which provides an amount in XLM that can be settled with the same payment system as the leases. This allows for granular protation of utilities based on exact consumption during a sublease.
 
-## d. Video
+## d. Technical Explanation
+
+Same as above in a
 
 ## e. Demo site
 
