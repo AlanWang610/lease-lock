@@ -1,0 +1,18 @@
+[package]
+name = "auction"
+version = "0.0.1"
+authors = ["AhaLabs"]
+edition = "2021"
+license = "Apache-2.0"
+repository = "https://github.com/theahaco/scaffold-stellar"
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+soroban-sdk = { workspace = true }
+soroban-token-sdk = { workspace = true }
+
+[dev-dependencies]
+soroban-sdk = { workspace = true }
+
