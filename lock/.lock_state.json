@@ -1,0 +1,11 @@
+{
+  "NYC123": {
+    "state": "LOCKED",
+    "last_event": {
+      "type": "LeaseEnded",
+      "who": "GDNJNBGFGUI2AFZOQEGGCF2VKTKXKCQLPY4JMBLH7ATH5CBKY3QRXLVU",
+      "ts": "2025-10-26T01:01:03.658795Z",
+      "id": "test-LeaseEnded-1761440463"
+    }
+  }
+}

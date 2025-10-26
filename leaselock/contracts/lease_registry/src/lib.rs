@@ -8,6 +8,9 @@ use soroban_sdk::{
 pub enum Event {
     LeaseGranted,       // (unit) -> master
     SubleaseGranted,    // (unit) -> sub
+    LeaseActivated,     // (unit) -> subtenant (when sublease becomes usable)
+    Delinquent,         // (unit) -> subtenant (when payment is overdue)
+    LeaseEnded,         // (unit) -> subtenant (when lease is terminated)
 }
 
 #[contract]
@@ -77,5 +80,32 @@ impl LeaseRegistry {
         if let Some(v) = masters.get(unit.clone()) { for a in v.iter() { out.push_back(a) } }
         if let Some(v) = chains.get(unit)           { for a in v.iter() { out.push_back(a) } }
         out
+    }
+
+    /// Activate a lease - when a sublease becomes usable (e.g., first rent paid / landlord approval)
+    /// Only landlord or master tenant may call
+    pub fn activate_lease(e: Env, unit: Symbol, subtenant: Address) {
+        // For now, allow any authenticated caller - in production, add proper authorization
+        subtenant.require_auth();
+        
+        e.events().publish((Event::LeaseActivated, unit.clone()), subtenant.clone());
+    }
+
+    /// Mark tenant as delinquent to trigger lock revoke
+    /// Only landlord or master tenant may call
+    pub fn set_delinquent(e: Env, unit: Symbol, subtenant: Address) {
+        // For now, allow any authenticated caller - in production, add proper authorization
+        subtenant.require_auth();
+        
+        e.events().publish((Event::Delinquent, unit.clone()), subtenant.clone());
+    }
+
+    /// Mark lease as ended to revoke lock permanently
+    /// Only landlord or master tenant may call
+    pub fn end_lease(e: Env, unit: Symbol, subtenant: Address) {
+        // For now, allow any authenticated caller - in production, add proper authorization
+        subtenant.require_auth();
+        
+        e.events().publish((Event::LeaseEnded, unit.clone()), subtenant.clone());
     }
 }
