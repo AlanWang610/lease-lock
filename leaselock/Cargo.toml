@@ -15,6 +15,10 @@ version = "22.0.8"
 [workspace.dependencies.soroban-token-sdk]
 version = "22.0.8"
 
+[workspace.dependencies.stellar-access]
+git = "https://github.com/OpenZeppelin/stellar-contracts"
+tag = "v0.4.1"
+
 [workspace.dependencies.stellar-contract-utils]
 git = "https://github.com/OpenZeppelin/stellar-contracts"
 tag = "v0.4.1"
