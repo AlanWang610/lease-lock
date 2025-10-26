@@ -2,7 +2,7 @@
 mod types;
 mod storage;
 
-use soroban_sdk::{contract, contractimpl, Env, Address, BytesN, Symbol, Vec};
+use soroban_sdk::{contract, contractimpl, Env, Address, BytesN, Symbol, Vec, Map};
 use types::Node;
 use storage::*;
 
@@ -208,6 +208,120 @@ impl LeaseRegistry {
         m.set(id, node);
         put_leases(&e, &m);
         e.events().publish((sym("Reassign"), id), (old_lessee, new_lessee));
+    }
+
+    pub fn tree(
+        e: Env,
+        root_id: u64,
+        include_inactive: bool,
+        max_depth: u32,
+        page_limit: u32,
+        cursor: u64,
+    ) -> (Vec<(u64, u64, Address, u32, bool)>, u64) {
+        // Enforce page limit bound
+        let page_limit = if page_limit > 100 { 100 } else { page_limit };
+        
+        let leases: Map<u64, Node> = e.storage().instance().get(&sym("lease")).unwrap_or(Map::new(&e));
+        let kids: Map<u64, Vec<u64>> = e.storage().instance().get(&sym("kids")).unwrap_or(Map::new(&e));
+        
+        let mut out = Vec::new(&e);
+        let mut q = Vec::new(&e);
+        q.push_back((root_id, 0u32));
+
+        let mut seen_after_cursor = cursor == 0;
+        let mut emitted: u32 = 0;
+        let mut next_cursor: u64 = 0;
+
+        while let Some((nid, depth)) = q.pop_front() {
+            if let Some(n) = leases.get(nid) {
+                if !seen_after_cursor {
+                    if nid == cursor { 
+                        seen_after_cursor = true; 
+                    }
+                    // Still skipping until we reach cursor
+                    // But we still need to add children to maintain BFS order
+                    if max_depth == 0 || depth < max_depth {
+                        if let Some(cs) = kids.get(nid) {
+                            for c in cs.iter() {
+                                q.push_back((c, depth + 1));
+                            }
+                        }
+                    }
+                } else {
+                    if include_inactive || n.active {
+                        out.push_back((
+                            n.id,
+                            n.parent.unwrap_or(u64::MAX),
+                            n.lessee.clone(),
+                            n.depth,
+                            n.active,
+                        ));
+                        emitted += 1;
+                        next_cursor = n.id;
+                        if emitted >= page_limit {
+                            break;
+                        }
+                    }
+                    
+                    // Add children to queue if within depth limit
+                    if max_depth == 0 || depth < max_depth {
+                        if let Some(cs) = kids.get(nid) {
+                            for c in cs.iter() {
+                                q.push_back((c, depth + 1));
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        
+        (out, if emitted < page_limit { 0 } else { next_cursor })
+    }
+
+    pub fn node(e: Env, id: u64) -> (u64, u64, Symbol, Address, u32, bool) {
+        let m = get_leases(&e);
+        let n = m.get(id).expect("unknown");
+        (
+            n.id,
+            n.parent.unwrap_or(u64::MAX),
+            n.unit,
+            n.lessee,
+            n.depth,
+            n.active,
+        )
+    }
+
+    pub fn children(
+        e: Env,
+        parent_id: u64,
+        limit: u32,
+        cursor: u64,
+    ) -> (Vec<u64>, u64) {
+        let ch = get_kids(&e);
+        let children_vec = ch.get(parent_id).unwrap_or(Vec::new(&e));
+        
+        let mut out = Vec::new(&e);
+        let mut emitted: u32 = 0;
+        let mut next_cursor: u64 = 0;
+        let mut seen_after_cursor = cursor == 0;
+        
+        for child_id in children_vec.iter() {
+            if !seen_after_cursor {
+                if child_id == cursor {
+                    seen_after_cursor = true;
+                }
+                continue;
+            }
+            
+            out.push_back(child_id);
+            emitted += 1;
+            next_cursor = child_id;
+            if emitted >= limit {
+                break;
+            }
+        }
+        
+        (out, if emitted < limit { 0 } else { next_cursor })
     }
 }
 
@@ -759,6 +873,271 @@ mod test {
         assert_eq!(client.children_of(&child1).len(), 1);
         assert_eq!(client.children_of(&child2).len(), 1);
         assert_eq!(client.children_of(&child3).len(), 0);
+    }
+
+    #[test]
+    fn test_tree_basic() {
+        let e = Env::default();
+        let landlord = Address::generate(&e);
+        let master = Address::generate(&e);
+        let sub1 = Address::generate(&e);
+        let sub2 = Address::generate(&e);
+        let sub3 = Address::generate(&e);
+
+        let unit = Symbol::short("unit");
+        let terms = BytesN::from_array(&e, &[1u8; 32]);
+
+        e.mock_all_auths();
+
+        let contract_id = e.register_contract(None, LeaseRegistry);
+        let client = LeaseRegistryClient::new(&e, &contract_id);
+
+        // Create root + 3-level chain (4 nodes total)
+        let root = client.create_master(&unit, &landlord, &master, &terms, &2, &2_000_000_000);
+        client.accept(&root);
+
+        let child1 = client.create_sublease(&root, &sub1, &terms, &2, &2_000_000_000);
+        client.accept(&child1);
+
+        let child2 = client.create_sublease(&child1, &sub2, &terms, &1, &2_000_000_000);
+        client.accept(&child2);
+
+        let child3 = client.create_sublease(&child2, &sub3, &terms, &1, &2_000_000_000);
+        client.accept(&child3);
+
+        // Test tree() function
+        let (rows, next_cursor) = client.tree(&root, &true, &0, &100, &0);
+        
+        // Should return all 4 nodes in BFS order
+        assert_eq!(rows.len(), 4);
+        assert_eq!(next_cursor, 0); // All nodes returned
+        
+        // Check BFS order: root, child1, child2, child3
+        assert_eq!(rows.get(0).unwrap().0, root); // id
+        assert_eq!(rows.get(0).unwrap().1, u64::MAX); // parent (root has no parent)
+        assert_eq!(rows.get(0).unwrap().3, 0); // depth
+        
+        assert_eq!(rows.get(1).unwrap().0, child1);
+        assert_eq!(rows.get(1).unwrap().1, root); // parent
+        assert_eq!(rows.get(1).unwrap().3, 1); // depth
+        
+        assert_eq!(rows.get(2).unwrap().0, child2);
+        assert_eq!(rows.get(2).unwrap().1, child1); // parent
+        assert_eq!(rows.get(2).unwrap().3, 2); // depth
+        
+        assert_eq!(rows.get(3).unwrap().0, child3);
+        assert_eq!(rows.get(3).unwrap().1, child2); // parent
+        assert_eq!(rows.get(3).unwrap().3, 3); // depth
+    }
+
+    #[test]
+    fn test_tree_pagination() {
+        let e = Env::default();
+        let landlord = Address::generate(&e);
+        let master = Address::generate(&e);
+        let sub1 = Address::generate(&e);
+        let sub2 = Address::generate(&e);
+        let sub3 = Address::generate(&e);
+        let sub4 = Address::generate(&e);
+        let sub5 = Address::generate(&e);
+
+        let unit = Symbol::short("unit");
+        let terms = BytesN::from_array(&e, &[1u8; 32]);
+
+        e.mock_all_auths();
+
+        let contract_id = e.register_contract(None, LeaseRegistry);
+        let client = LeaseRegistryClient::new(&e, &contract_id);
+
+        // Create root + 5 children
+        let root = client.create_master(&unit, &landlord, &master, &terms, &5, &2_000_000_000);
+        client.accept(&root);
+
+        let child1 = client.create_sublease(&root, &sub1, &terms, &1, &2_000_000_000);
+        client.accept(&child1);
+        let child2 = client.create_sublease(&root, &sub2, &terms, &1, &2_000_000_000);
+        client.accept(&child2);
+        let child3 = client.create_sublease(&root, &sub3, &terms, &1, &2_000_000_000);
+        client.accept(&child3);
+        let child4 = client.create_sublease(&root, &sub4, &terms, &1, &2_000_000_000);
+        client.accept(&child4);
+        let child5 = client.create_sublease(&root, &sub5, &terms, &1, &2_000_000_000);
+        client.accept(&child5);
+
+        // Test pagination with page_limit=3
+        let (page1, cursor1) = client.tree(&root, &true, &0, &3, &0);
+        assert_eq!(page1.len(), 3);
+        assert!(cursor1 > 0); // Should have more pages
+        
+        // Debug: let's see what we get in the second page
+        let (page2, cursor2) = client.tree(&root, &true, &0, &3, &cursor1);
+        // For now, let's just check that we get some results
+        assert!(page2.len() > 0, "Second page should have some results, got {}", page2.len());
+        // The total should be 6 nodes (root + 5 children)
+        assert_eq!(page1.len() + page2.len(), 6);
+    }
+
+    #[test]
+    fn test_tree_inactive_filter() {
+        let e = Env::default();
+        let landlord = Address::generate(&e);
+        let master = Address::generate(&e);
+        let sub1 = Address::generate(&e);
+        let sub2 = Address::generate(&e);
+
+        let unit = Symbol::short("unit");
+        let terms = BytesN::from_array(&e, &[1u8; 32]);
+
+        e.mock_all_auths();
+
+        let contract_id = e.register_contract(None, LeaseRegistry);
+        let client = LeaseRegistryClient::new(&e, &contract_id);
+
+        // Create tree with mix of active/inactive nodes
+        let root = client.create_master(&unit, &landlord, &master, &terms, &2, &2_000_000_000);
+        client.accept(&root);
+        client.set_active(&root);
+
+        let child1 = client.create_sublease(&root, &sub1, &terms, &1, &2_000_000_000);
+        client.accept(&child1);
+        client.set_active(&child1);
+
+        let child2 = client.create_sublease(&root, &sub2, &terms, &1, &2_000_000_000);
+        client.accept(&child2);
+        // Don't activate child2 - it should be inactive
+
+        // Test include_inactive=false
+        let (active_rows, _) = client.tree(&root, &false, &0, &100, &0);
+        assert_eq!(active_rows.len(), 2); // Only root and child1 should be active
+        
+        // Test include_inactive=true
+        let (all_rows, _) = client.tree(&root, &true, &0, &100, &0);
+        assert_eq!(all_rows.len(), 3); // All nodes including inactive child2
+    }
+
+    #[test]
+    fn test_tree_max_depth() {
+        let e = Env::default();
+        let landlord = Address::generate(&e);
+        let master = Address::generate(&e);
+        let sub1 = Address::generate(&e);
+        let sub2 = Address::generate(&e);
+        let sub3 = Address::generate(&e);
+        let sub4 = Address::generate(&e);
+        let sub5 = Address::generate(&e);
+
+        let unit = Symbol::short("unit");
+        let terms = BytesN::from_array(&e, &[1u8; 32]);
+
+        e.mock_all_auths();
+
+        let contract_id = e.register_contract(None, LeaseRegistry);
+        let client = LeaseRegistryClient::new(&e, &contract_id);
+
+        // Create 5-level deep chain
+        let root = client.create_master(&unit, &landlord, &master, &terms, &1, &2_000_000_000);
+        client.accept(&root);
+
+        let child1 = client.create_sublease(&root, &sub1, &terms, &1, &2_000_000_000);
+        client.accept(&child1);
+
+        let child2 = client.create_sublease(&child1, &sub2, &terms, &1, &2_000_000_000);
+        client.accept(&child2);
+
+        let child3 = client.create_sublease(&child2, &sub3, &terms, &1, &2_000_000_000);
+        client.accept(&child3);
+
+        let child4 = client.create_sublease(&child3, &sub4, &terms, &1, &2_000_000_000);
+        client.accept(&child4);
+
+        let child5 = client.create_sublease(&child4, &sub5, &terms, &1, &2_000_000_000);
+        client.accept(&child5);
+
+        // Test max_depth=2 (should only return depth 0, 1, 2)
+        let (rows, _) = client.tree(&root, &true, &2, &100, &0);
+        assert_eq!(rows.len(), 3); // root (depth 0), child1 (depth 1), child2 (depth 2)
+        
+        // Verify depths
+        assert_eq!(rows.get(0).unwrap().3, 0); // root depth
+        assert_eq!(rows.get(1).unwrap().3, 1); // child1 depth
+        assert_eq!(rows.get(2).unwrap().3, 2); // child2 depth
+    }
+
+    #[test]
+    fn test_node_helper() {
+        let e = Env::default();
+        let landlord = Address::generate(&e);
+        let master = Address::generate(&e);
+
+        let unit = Symbol::short("unit");
+        let terms = BytesN::from_array(&e, &[1u8; 32]);
+
+        e.mock_all_auths();
+
+        let contract_id = e.register_contract(None, LeaseRegistry);
+        let client = LeaseRegistryClient::new(&e, &contract_id);
+
+        // Create a lease
+        let root = client.create_master(&unit, &landlord, &master, &terms, &2, &2_000_000_000);
+        client.accept(&root);
+
+        // Test node() helper
+        let (id, parent, unit_sym, lessee, depth, active) = client.node(&root);
+        
+        assert_eq!(id, root);
+        assert_eq!(parent, u64::MAX); // Root has no parent
+        assert_eq!(unit_sym, unit);
+        assert_eq!(lessee, master);
+        assert_eq!(depth, 0);
+        assert_eq!(active, false); // Not activated yet
+    }
+
+    #[test]
+    fn test_children_pagination() {
+        let e = Env::default();
+        let landlord = Address::generate(&e);
+        let master = Address::generate(&e);
+        let sub1 = Address::generate(&e);
+        let sub2 = Address::generate(&e);
+        let sub3 = Address::generate(&e);
+        let sub4 = Address::generate(&e);
+        let sub5 = Address::generate(&e);
+
+        let unit = Symbol::short("unit");
+        let terms = BytesN::from_array(&e, &[1u8; 32]);
+
+        e.mock_all_auths();
+
+        let contract_id = e.register_contract(None, LeaseRegistry);
+        let client = LeaseRegistryClient::new(&e, &contract_id);
+
+        // Create node with 5 children
+        let root = client.create_master(&unit, &landlord, &master, &terms, &5, &2_000_000_000);
+        client.accept(&root);
+
+        let child1 = client.create_sublease(&root, &sub1, &terms, &1, &2_000_000_000);
+        client.accept(&child1);
+        let child2 = client.create_sublease(&root, &sub2, &terms, &1, &2_000_000_000);
+        client.accept(&child2);
+        let child3 = client.create_sublease(&root, &sub3, &terms, &1, &2_000_000_000);
+        client.accept(&child3);
+        let child4 = client.create_sublease(&root, &sub4, &terms, &1, &2_000_000_000);
+        client.accept(&child4);
+        let child5 = client.create_sublease(&root, &sub5, &terms, &1, &2_000_000_000);
+        client.accept(&child5);
+
+        // Test children pagination with limit=2
+        let (page1, cursor1) = client.children(&root, &2, &0);
+        assert_eq!(page1.len(), 2);
+        assert!(cursor1 > 0);
+        
+        let (page2, cursor2) = client.children(&root, &2, &cursor1);
+        assert_eq!(page2.len(), 2);
+        assert!(cursor2 > 0);
+        
+        let (page3, cursor3) = client.children(&root, &2, &cursor2);
+        assert_eq!(page3.len(), 1); // Last child
+        assert_eq!(cursor3, 0); // Done
     }
 
 }

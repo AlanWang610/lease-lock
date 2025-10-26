@@ -313,9 +313,161 @@ class LeaseAPI:
         
         return build_tree(root_id)
     
+    def tree(
+        self, 
+        root_id: int, 
+        include_inactive: bool = True, 
+        max_depth: int = 0, 
+        page_limit: int = 100, 
+        cursor: int = 0
+    ) -> tuple[list[tuple[int, int | None, str, int, bool]], int]:
+        """
+        Get paginated tree view using the new tree() contract function
+        
+        Args:
+            root_id: Root lease ID to start traversal from
+            include_inactive: Whether to include inactive leases
+            max_depth: Maximum depth to traverse (0 = unlimited)
+            page_limit: Maximum number of nodes per page (max 100)
+            cursor: Cursor for pagination (0 to start fresh)
+            
+        Returns:
+            (rows, next_cursor) where rows are (id, parent, lessee, depth, active)
+            parent is None for root nodes, otherwise the parent ID
+        """
+        result = self.rpc.invoke_contract_function(
+            contract_id=self.contract_id,
+            function_name="tree",
+            parameters=[
+                scval.to_uint64(root_id),
+                scval.to_bool(include_inactive),
+                scval.to_uint32(max_depth),
+                scval.to_uint32(page_limit),
+                scval.to_uint64(cursor)
+            ]
+        )
+        
+        # Parse the result
+        result_vec = result.result.scval.obj.vec.scvec
+        rows = []
+        
+        # First element is the rows vector
+        if result_vec[0].obj.vec:
+            for row in result_vec[0].obj.vec.scvec:
+                row_tuple = row.obj.vec.scvec
+                id_val = int(row_tuple[0].obj.u64)
+                parent_val = int(row_tuple[1].obj.u64)
+                lessee_val = str(row_tuple[2].obj.address)
+                depth_val = int(row_tuple[3].obj.u32)
+                active_val = bool(row_tuple[4].obj.b)
+                
+                # Convert u64::MAX to None for parent
+                parent = None if parent_val == 2**64 - 1 else parent_val
+                
+                rows.append((id_val, parent, lessee_val, depth_val, active_val))
+        
+        # Second element is the next cursor
+        next_cursor = int(result_vec[1].obj.u64)
+        
+        return rows, next_cursor
+
+    def get_full_tree(
+        self, 
+        root_id: int, 
+        include_inactive: bool = True, 
+        max_depth: int = 0
+    ) -> list[tuple[int, int | None, str, int, bool]]:
+        """
+        Fetch entire tree by auto-paginating through all pages
+        
+        Args:
+            root_id: Root lease ID to start traversal from
+            include_inactive: Whether to include inactive leases
+            max_depth: Maximum depth to traverse (0 = unlimited)
+            
+        Returns:
+            List of all nodes in the tree as (id, parent, lessee, depth, active) tuples
+        """
+        all_rows = []
+        cursor = 0
+        
+        while True:
+            rows, next_cursor = self.tree(
+                root_id=root_id,
+                include_inactive=include_inactive,
+                max_depth=max_depth,
+                page_limit=100,
+                cursor=cursor
+            )
+            
+            all_rows.extend(rows)
+            
+            if next_cursor == 0:
+                break
+                
+            cursor = next_cursor
+        
+        return all_rows
+
+    def print_tree_from_api(
+        self, 
+        root_id: int, 
+        include_inactive: bool = False
+    ) -> None:
+        """
+        Pretty-print tree using the new tree() API
+        
+        Args:
+            root_id: Root lease ID to start traversal from
+            include_inactive: Whether to include inactive leases
+        """
+        # Get full tree data
+        rows = self.get_full_tree(root_id, include_inactive)
+        
+        if not rows:
+            print(f"No lease tree found for root ID {root_id}")
+            return
+        
+        # Build parent->children map
+        from collections import defaultdict
+        children_map = defaultdict(list)
+        node_data = {}
+        
+        for (node_id, parent, lessee, depth, active) in rows:
+            node_data[node_id] = (parent, lessee, depth, active)
+            if parent is not None:
+                children_map[parent].append(node_id)
+        
+        def print_node(node_id: int, depth: int):
+            if node_id not in node_data:
+                return
+                
+            parent, lessee, node_depth, active = node_data[node_id]
+            prefix = "  " * depth
+            
+            # Format lessee address for display
+            lessee_short = lessee[:8] + "..." if len(lessee) > 8 else lessee
+            
+            status = "🟢" if active else "⚪"
+            
+            print(f"{prefix}├─ ID:{node_id} {status} depth:{node_depth}")
+            print(f"{prefix}   Lessee: {lessee_short}")
+            
+            # Print children
+            for child_id in sorted(children_map.get(node_id, [])):
+                print_node(child_id, depth + 1)
+        
+        print(f"\nLease Tree (Root: {root_id}) - Tree API")
+        print("=" * 60)
+        print_node(root_id, 0)
+        print("\nLegend:")
+        print("🟢 = Active lease")
+        print("⚪ = Inactive lease")
+        print(f"Total nodes: {len(rows)}")
+
     def print_tree(self, root_id: int, indent: int = 0) -> None:
         """
-        Print a visual representation of the lease tree
+        Print a visual representation of the lease tree (legacy method)
         
         Args:
             root_id: Root lease ID
