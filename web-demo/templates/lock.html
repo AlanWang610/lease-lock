@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lock - Lease-Lock</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div class="dashboard">
+        <aside class="sidebar">
+            <div class="logo">
+                <img src="/static/LeaseLock.png" alt="Lease-Lock" class="logo-image">
+            </div>
+            
+            <nav class="nav-menu">
+                <a href="/" class="nav-item">
+                    <span class="nav-icon">←</span>
+                    <span class="nav-text">Back</span>
+                </a>
+            </nav>
+        </aside>
+
+        <main class="content">
+            <header class="content-header">
+                <div>
+                    <h2 class="page-title">Smart Lock</h2>
+                    <p class="page-subtitle">Enter access code</p>
+                </div>
+                <div class="header-actions">
+                    <button class="btn-secondary" onclick="resetLock()">Reset</button>
+                </div>
+            </header>
+
+            <div style="padding: 40px 15px;">
+                <div style="max-width: 400px; margin: 0 auto;">
+                    <div class="table-container" style="margin-bottom: 20px;">
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th colspan="2">Lock Status</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr class="info-row">
+                                    <td class="info-label">Property</td>
+                                    <td class="info-value">285 Washington St, Somerville, MA</td>
+                                </tr>
+                                <tr class="info-row">
+                                    <td class="info-label">Unit</td>
+                                    <td class="info-value">unit:somerville:285-washington</td>
+                                </tr>
+                                <tr class="info-row">
+                                    <td class="info-label">Lease Status</td>
+                                    <td class="info-value"><span class="status-badge pending" id="lockStatus">Locked</span></td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <div class="table-container" style="margin-bottom: 20px;">
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th colspan="2">Access Code</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td colspan="2" style="text-align: center; padding: 20px;">
+                                        <div id="lockIcon" style="font-size: 48px; margin-bottom: 15px;">🔒</div>
+                                        <div id="codeDisplay" style="font-size: 32px; font-weight: bold; letter-spacing: 8px; color: #000000;">----</div>
+                                        <div id="codeAttempts" style="margin-top: 10px; font-size: 12px; color: #808080;"></div>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <div id="keypadContainer" class="table-container">
+                        <table class="data-table">
+                            <tbody id="keypadBody"></tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div id="lockResult" style="margin-top: 20px;"></div>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        const keypadLayout = [
+            ['1', '2', '3'],
+            ['4', '5', '6'],
+            ['7', '8', '9'],
+            ['Clear', '0', 'Enter']
+        ];
+
+        let enteredCode = '';
+        let attempts = 0;
+        const correctCode = '2853'; // Building address code
+        const maxAttempts = 3;
+
+        // Create keypad
+        document.addEventListener('DOMContentLoaded', () => {
+            const keypadBody = document.getElementById('keypadBody');
+            
+            keypadLayout.forEach((row, rowIdx) => {
+                const tr = document.createElement('tr');
+                row.forEach((key) => {
+                    const td = document.createElement('td');
+                    const btn = document.createElement('button');
+                    btn.className = key === 'Enter' || key === 'Clear' ? 'btn-primary' : 'btn-secondary';
+                    btn.style.width = '100%';
+                    btn.style.padding = '20px';
+                    btn.style.fontSize = '18px';
+                    btn.style.fontWeight = 'bold';
+                    btn.textContent = key;
+                    btn.onclick = () => handleKeypad(key);
+                    
+                    td.appendChild(btn);
+                    tr.appendChild(td);
+                });
+                keypadBody.appendChild(tr);
+            });
+
+            // Check payment status
+            checkPaymentStatus();
+        });
+
+        function handleKeypad(key) {
+            const codeDisplay = document.getElementById('codeDisplay');
+            const result = document.getElementById('lockResult');
+            const lockStatus = document.getElementById('lockStatus');
+            
+            if (key === 'Clear') {
+                enteredCode = '';
+                codeDisplay.textContent = '----';
+                result.innerHTML = '';
+            } else if (key === 'Enter') {
+                attempts++;
+                const codeAttempts = document.getElementById('codeAttempts');
+                codeAttempts.textContent = `Attempts: ${attempts}/${maxAttempts}`;
+
+                if (attempts >= maxAttempts) {
+                    codeDisplay.textContent = '----';
+                    result.innerHTML = '<div class="result-error">Too many failed attempts. Lock disabled.</div>';
+                    disableKeypad();
+                } else if (enteredCode === correctCode) {
+                    // Update lock icon to unlocked
+                    document.getElementById('lockIcon').textContent = '🔓';
+                    
+                    lockStatus.textContent = 'Unlocked';
+                    lockStatus.className = 'status-badge active';
+                    result.innerHTML = '<div class="result-success"><h3>Access Granted</h3><p>Lock unlocked successfully.</p></div>';
+                    codeDisplay.textContent = '----';
+                    enteredCode = '';
+                    attempts = 0;
+                } else {
+                    result.innerHTML = '<div class="result-error">Incorrect code. Try again.</div>';
+                    enteredCode = '';
+                    codeDisplay.textContent = '----';
+                }
+            } else {
+                if (enteredCode.length < 4) {
+                    enteredCode += key;
+                    codeDisplay.textContent = enteredCode.padEnd(4, '-').split('').join(' ');
+                }
+                result.innerHTML = '';
+            }
+        }
+
+        function checkPaymentStatus() {
+            fetch('/api/check-lock-status')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.payment_complete) {
+                        document.getElementById('lockStatus').className = 'status-badge active';
+                        document.getElementById('lockStatus').textContent = 'Unlocked';
+                    } else {
+                        disableKeypad();
+                        document.getElementById('lockResult').innerHTML = '<div class="result-error">Payment not completed. Lock disabled. Please complete rent payment first.</div>';
+                    }
+                })
+                .catch(error => {
+                    console.error('Error checking payment status:', error);
+                    // Default to locked state if API fails
+                    disableKeypad();
+                });
+        }
+
+        function disableKeypad() {
+            const buttons = document.querySelectorAll('#keypadBody button');
+            buttons.forEach(btn => {
+                btn.disabled = true;
+                btn.style.opacity = '0.5';
+                btn.style.cursor = 'not-allowed';
+            });
+        }
+
+        function resetLock() {
+            enteredCode = '';
+            attempts = 0;
+            document.getElementById('codeDisplay').textContent = '----';
+            document.getElementById('codeAttempts').textContent = '';
+            document.getElementById('lockResult').innerHTML = '';
+            document.getElementById('lockIcon').textContent = '🔒';
+            checkPaymentStatus();
+        }
+    </script>
+</body>
+</html>
+

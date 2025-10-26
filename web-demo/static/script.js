@@ -29,13 +29,16 @@ function switchTab(tab) {
     
     updateHeader(tab);
     demoState.currentTab = tab;
+    
+    // Don't auto-load tree - wait for button press
 }
 
 function updateHeader(tab) {
     const titles = {
         auctions: { title: 'Auctions', subtitle: 'Second-price auction listings' },
         payment: { title: 'Payments', subtitle: 'Lease payment and activation' },
-        utilities: { title: 'Utilities', subtitle: 'Meter readings and cost allocation' }
+        utilities: { title: 'Utilities', subtitle: 'Meter readings and cost allocation' },
+        tree: { title: 'Lease Tree', subtitle: 'Subleasing hierarchy and entities' }
     };
     
     const info = titles[tab] || titles.auctions;
@@ -102,6 +105,18 @@ async function runPayRent() {
     const result = document.getElementById('resultPayment');
     const leaseStatus = document.getElementById('leaseStatus');
     
+    // Collect SEP-10 and SEP-12 data
+    const sep10Account = document.getElementById('sep10Account').value;
+    const kycData = {
+        firstName: document.getElementById('kycFirstName').value,
+        lastName: document.getElementById('kycLastName').value,
+        email: document.getElementById('kycEmail').value,
+        phone: document.getElementById('kycPhone').value,
+        dob: document.getElementById('kycDOB').value,
+        idType: document.getElementById('kycIDType').value,
+        idNumber: document.getElementById('kycIDNumber').value
+    };
+    
     btn.disabled = true;
     btn.textContent = 'Processing...';
     result.innerHTML = '<div class="loading">Executing payment transaction</div>';
@@ -114,6 +129,14 @@ async function runPayRent() {
             let html = '<div class="result-success">';
             html += '<h3>Payment & Activation Complete</h3>';
             
+            // Display entered data at the top
+            html += '<div class="transaction-detail" style="background: #f0f0f0; margin-bottom: 10px;">';
+            html += '<strong>Submitted Information:</strong><br>';
+            html += `SEP-10 Account: <code>${sep10Account || 'Not provided'}</code><br>`;
+            html += `KYC: ${kycData.firstName} ${kycData.lastName} (${kycData.email})<br>`;
+            html += `ID: ${kycData.idType || 'N/A'} ${kycData.idNumber || 'N/A'}<br>`;
+            html += '</div>';
+            
             data.steps.forEach((step, idx) => {
                 html += '<div class="transaction-detail">';
                 html += `<strong>${step.name}:</strong><br>`;
@@ -123,6 +146,7 @@ async function runPayRent() {
                 if (step.amount) html += `Amount: ${step.amount}<br>`;
                 if (step.lease_id) html += `Lease ID: ${step.lease_id}<br>`;
                 if (step.lock_status) html += `Lock: <strong>${step.lock_status}</strong><br>`;
+                if (step.customer_id) html += `Customer ID: ${step.customer_id}<br>`;
                 html += `<a href="${step.explorer_url}" target="_blank">View Transaction</a>`;
                 html += '</div>';
                 
@@ -157,7 +181,17 @@ async function fetchUtilities() {
     
     try {
         const response = await fetch('/api/post-reading', { method: 'POST' });
-        const data = await response.json();
+        
+        if (!response.ok) {
+            throw new Error(`HTTP error: ${response.status}`);
+        }
+        
+        const text = await response.text();
+        if (!text) {
+            throw new Error('Empty response from server');
+        }
+        
+        const data = JSON.parse(text);
         
         if (data.success) {
             let html = '<div class="result-success">';
@@ -176,6 +210,7 @@ async function fetchUtilities() {
             result.innerHTML = html;
         }
     } catch (error) {
+        console.error('Error fetching utilities:', error);
         result.innerHTML = `<div class="result-error">Error: ${error.message}</div>`;
     }
     
@@ -224,4 +259,49 @@ function resetAll() {
     if (confirm('Reset all demo state?')) {
         location.reload();
     }
+}
+
+async function loadLeaseTree() {
+    const btn = document.getElementById('btnLoadTree');
+    const result = document.getElementById('resultTree');
+    
+    btn.disabled = true;
+    btn.textContent = 'Loading...';
+    result.innerHTML = '<div class="loading">Loading lease tree...</div>';
+    
+    try {
+        const response = await fetch('/api/lease-tree', { method: 'GET' });
+        
+        if (!response.ok) {
+            throw new Error(`HTTP error: ${response.status}`);
+        }
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            // Show summary with ASCII tree
+            let html = '<div class="result-success">';
+            html += '<h3>Lease Tree</h3>';
+            html += '<div class="transaction-detail">';
+            html += `<strong>Total Nodes:</strong> ${data.total_nodes}<br>`;
+            html += `<strong>Root ID:</strong> ${data.root_id}<br><br>`;
+            
+            // Display ASCII tree if available
+            if (data.ascii_tree) {
+                html += '<pre style="font-family: monospace; background: #f0f0f0; padding: 15px; border: 1px solid #c0c0c0; margin-top: 10px; line-height: 1.8; white-space: pre-wrap; font-size: 13px;">';
+                html += data.ascii_tree;
+                html += '</pre><br>';
+            }
+            
+            html += '</div></div>';
+            
+            result.innerHTML = html;
+        }
+    } catch (error) {
+        console.error('Error loading lease tree:', error);
+        result.innerHTML = `<div class="result-error">Error: ${error.message}</div>`;
+    }
+    
+    btn.disabled = false;
+    btn.textContent = 'Load Tree';
 }

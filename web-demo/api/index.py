@@ -11,13 +11,18 @@ import sys
 import time
 from flask import Flask, render_template, jsonify, request
 
+# Simple in-memory state for demo
+# In production, this would be stored in a database or blockchain
+payment_state = {"complete": False}
+
 # Add api directory to path
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from demo_runner import (
     execute_pay_rent,  # Real payment execution
     mock_post_reading,
     execute_split_utilities,  # Real utility split calculation
-    execute_place_bid  # Real auction bid placement
+    execute_place_bid,  # Real auction bid placement
+    fetch_lease_tree  # Lease tree retrieval
 )
 
 # Get the base directory (web-demo)
@@ -34,12 +39,20 @@ def index():
     return render_template('index.html')
 
 
+@app.route('/lock')
+def lock():
+    """Serve the lock keypad page"""
+    return render_template('lock.html')
+
+
 @app.route('/api/pay-rent', methods=['POST'])
 def pay_rent():
     """Execute payment and activation demo - REAL blockchain transaction"""
     try:
         # Execute real blockchain payment
         result = execute_pay_rent()
+        # Mark payment as complete
+        payment_state["complete"] = True
         return jsonify(result), 200
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
@@ -79,6 +92,27 @@ def place_bid():
         return jsonify(result), 200
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+
+
+@app.route('/api/lease-tree', methods=['GET'])
+def lease_tree():
+    """Fetch the complete lease tree structure"""
+    try:
+        result = fetch_lease_tree()
+        return jsonify(result), 200
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@app.route('/api/check-lock-status', methods=['GET'])
+def check_lock_status():
+    """Check if payment has been completed (simple demo state)"""
+    # In a real implementation, this would query the blockchain
+    # For now, we'll use a simple session or file-based state
+    return jsonify({
+        "payment_complete": payment_state["complete"],
+        "message": "Payment required to unlock" if not payment_state["complete"] else "Unlock enabled"
+    })
 
 
 # For Vercel deployment

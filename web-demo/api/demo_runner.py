@@ -39,6 +39,53 @@ def get_account_info():
     }
 
 
+def mock_sep10_authentication() -> Dict[str, Any]:
+    """
+    Mock SEP-10 Stellar Web Authentication
+    Simulates the authentication flow where user signs a challenge
+    """
+    return {
+        "success": True,
+        "challenge": "AAAAA..." * 10,  # Mock transaction challenge
+        "tx_hash": generate_tx_hash(),
+        "message": "User authenticated via SEP-10"
+    }
+
+
+def mock_sep12_kyc() -> Dict[str, Any]:
+    """
+    Mock SEP-12 KYC Data Collection
+    Simulates collecting customer KYC information
+    """
+    import time
+    timestamp = time.strftime("%Y-%m-%dT%H:%M:%SZ")
+    
+    return {
+        "success": True,
+        "customer_id": "CUST_" + generate_tx_hash()[:16],
+        "kyc_data": {
+            "first_name": "John",
+            "last_name": "Doe",
+            "email": "john.doe@example.com",
+            "phone": "+1-555-123-4567",
+            "address": {
+                "line1": "285 Washington St",
+                "city": "Somerville",
+                "state": "MA",
+                "postal_code": "02143",
+                "country": "US"
+            },
+            "date_of_birth": "1990-01-15",
+            "id_type": "drivers_license",
+            "id_number": "DL123456789",
+            "verified": True
+        },
+        "timestamp": timestamp,
+        "tx_hash": generate_tx_hash(),
+        "message": "KYC data collected and stored"
+    }
+
+
 def execute_pay_rent() -> Dict[str, Any]:
     """
     Execute actual payment and activation on Stellar testnet
@@ -62,7 +109,8 @@ def execute_pay_rent() -> Dict[str, Any]:
         
         # Get configuration
         accounts = get_account_info()
-        lease_id = int(os.getenv("LEAF_ID", 4))
+        # Use a long lease ID string for demo
+        lease_id = "CA77YCFIJKLMNOPQRSTUVWXYZ1234567890ABCDEF"
         
         # Step 1: Real payment
         horizon_url = os.getenv("HORIZON_URL")
@@ -76,6 +124,18 @@ def execute_pay_rent() -> Dict[str, Any]:
         server = Server(horizon_url)
         tenant = Keypair.from_secret(tenant_secret)
         landlord = Keypair.from_secret(landlord_secret)
+        
+        # Step 0: SEP-10 Authentication
+        print("Authenticating via SEP-10...")
+        sep10_result = mock_sep10_authentication()
+        sep10_hash = sep10_result['tx_hash']
+        time.sleep(0.5)
+        
+        # Step 1: SEP-12 KYC Verification
+        print("Collecting KYC data via SEP-12...")
+        sep12_result = mock_sep12_kyc()
+        sep12_hash = sep12_result['tx_hash']
+        time.sleep(0.5)
         
         # Ensure accounts are funded
         print("Funding tenant account...")
@@ -114,7 +174,8 @@ def execute_pay_rent() -> Dict[str, Any]:
             if all([registry_id, rpc_url, lessor_secret]):
                 api = LeaseAPI(registry_id, rpc_url)
                 lessor = Keypair.from_secret(lessor_secret)
-                activation_result = api.set_active(lessor, lease_id)
+                # Use integer ID for actual API call
+                activation_result = api.set_active(lessor, 4)
                 activation_hash = activation_result.get('hash', generate_tx_hash())
                 print(f"Activation hash: {activation_hash}")
         except Exception as activation_error:
@@ -124,6 +185,19 @@ def execute_pay_rent() -> Dict[str, Any]:
         return {
             "success": True,
             "steps": [
+                {
+                    "name": "SEP-10 Authentication",
+                    "tx_hash": sep10_hash,
+                    "status": "confirmed",
+                    "explorer_url": f"https://stellar.expert/explorer/testnet/tx/{sep10_hash}"
+                },
+                {
+                    "name": "SEP-12 KYC Verification",
+                    "tx_hash": sep12_hash,
+                    "customer_id": sep12_result.get('customer_id', 'N/A'),
+                    "status": "confirmed",
+                    "explorer_url": f"https://stellar.expert/explorer/testnet/tx/{sep12_hash}"
+                },
                 {
                     "name": "Payment",
                     "tx_hash": payment_hash,
@@ -151,11 +225,29 @@ def execute_pay_rent() -> Dict[str, Any]:
         print(f"Real payment failed, using mock: {e}")
         traceback.print_exc()
         accounts = get_account_info()
-        lease_id = int(os.getenv("LEAF_ID", 4))
+        # Use long lease ID string for demo
+        lease_id = "CA77YCFIJKLMNOPQRSTUVWXYZ1234567890ABCDEF"
+        
+        # Mock SEP-10 and SEP-12 results
+        sep10_result = mock_sep10_authentication()
+        sep12_result = mock_sep12_kyc()
         
         return {
             "success": True,
             "steps": [
+                {
+                    "name": "SEP-10 Authentication",
+                    "tx_hash": sep10_result['tx_hash'],
+                    "status": "confirmed",
+                    "explorer_url": f"https://stellar.expert/explorer/testnet/tx/{sep10_result['tx_hash']}"
+                },
+                {
+                    "name": "SEP-12 KYC Verification",
+                    "tx_hash": sep12_result['tx_hash'],
+                    "customer_id": sep12_result.get('customer_id', 'N/A'),
+                    "status": "confirmed",
+                    "explorer_url": f"https://stellar.expert/explorer/testnet/tx/{sep12_result['tx_hash']}"
+                },
                 {
                     "name": "Payment",
                     "tx_hash": generate_tx_hash(),
@@ -252,10 +344,11 @@ def mock_post_reading() -> Dict[str, Any]:
     """
     unit = os.getenv("UNIT", "unit:somerville:285-washington")
     period = os.getenv("PERIOD", "2025-10")
+    tx_hash = generate_tx_hash()
     
     return {
         "success": True,
-        "tx_hash": generate_tx_hash(),
+        "tx_hash": tx_hash,
         "unit": unit,
         "period": period,
         "readings": {
@@ -263,7 +356,7 @@ def mock_post_reading() -> Dict[str, Any]:
             "gas": "14 units",
             "water": "6800 units"
         },
-        "explorer_url": f"https://stellar.expert/explorer/testnet/tx/{generate_tx_hash()[:16]}"
+        "explorer_url": f"https://stellar.expert/explorer/testnet/tx/{tx_hash}"
     }
 
 
@@ -431,4 +524,188 @@ def mock_mark_delinquent() -> Dict[str, Any]:
         "event": "Delinq",
         "explorer_url": f"https://stellar.expert/explorer/testnet/tx/{generate_tx_hash()[:16]}"
     }
+
+
+def fetch_lease_tree() -> Dict[str, Any]:
+    """
+    Fetch the complete lease tree showing all entities
+    Returns a structure with landlord -> tenant (you as subleaser) -> subtenant
+    """
+    import sys
+    
+    # Add client/scripts to path
+    project_root = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
+    client_scripts_path = os.path.join(project_root, 'client', 'scripts')
+    sys.path.insert(0, client_scripts_path)
+    
+    # Use provided addresses
+    tenant_addr = "GBAK4TXOUV5XFLWDE6IUIZYYVFQXLY4LNWNSDGNFH27NUKDUOCHGHEZX"  # Tenant
+    subleaser_addr = "GC773P7BXH2I2MPHHYTDCRM66EBLEUUBSKHXN47E65Q6BAZ2DZVA6UQY"  # Subleaser (You)
+    
+    # Generate random landlord address
+    try:
+        from stellar_sdk import Keypair
+        landlord_keypair = Keypair.random()
+        landlord_addr = landlord_keypair.public_key
+    except:
+        landlord_addr = "GBLLANDLORD1234567890ABCDEFGHIJKLMNOPQRSTUVWX"
+    
+    # Mock tree structure with multiple subleases
+    # Structure: Landlord -> Tenant -> You (Subleaser) -> Multiple Subtenants
+    try:
+        from stellar_sdk import Keypair
+        subtenant1_keypair = Keypair.random()
+        subtenant2_keypair = Keypair.random()
+        subtenant3_keypair = Keypair.random()
+        subtenant1_addr = subtenant1_keypair.public_key
+        subtenant2_addr = subtenant2_keypair.public_key
+        subtenant3_addr = subtenant3_keypair.public_key
+    except:
+        subtenant1_addr = "GSUB1...SUBTENANT1"
+        subtenant2_addr = "GSUB2...SUBTENANT2"
+        subtenant3_addr = "GSUB3...SUBTENANT3"
+    
+    # Generate larger ASCII tree with addresses only
+    ascii_tree = f"""{landlord_addr}
+├── {tenant_addr}
+    └── {subleaser_addr}
+        ├── {subtenant1_addr}
+        ├── {subtenant2_addr}
+        └── {subtenant3_addr}"""
+    
+    mock_tree = {
+        "success": True,
+        "root_id": 1,
+        "total_nodes": 6,
+        "ascii_tree": ascii_tree,
+        "trees": [
+            {
+                "id": 1,
+                "role": "Landlord",
+                "lessee": landlord_addr,
+                "depth": 0,
+                "active": True,
+                "parent": None,
+                "children": [
+                    {
+                        "id": 2,
+                        "role": "Tenant",
+                        "lessee": tenant_addr,
+                        "depth": 1,
+                        "active": True,
+                        "parent": 1,
+                        "children": [
+                            {
+                                "id": 3,
+                                "role": "You - Subleaser",
+                                "lessee": subleaser_addr,
+                                "depth": 2,
+                                "active": True,
+                                "parent": 2,
+                                "children": [
+                                    {
+                                        "id": 4,
+                                        "role": "Subtenant 1",
+                                        "lessee": subtenant1_addr,
+                                        "depth": 3,
+                                        "active": True,
+                                        "parent": 3,
+                                        "children": []
+                                    },
+                                    {
+                                        "id": 5,
+                                        "role": "Subtenant 2",
+                                        "lessee": subtenant2_addr,
+                                        "depth": 3,
+                                        "active": True,
+                                        "parent": 3,
+                                        "children": []
+                                    },
+                                    {
+                                        "id": 6,
+                                        "role": "Subtenant 3",
+                                        "lessee": subtenant3_addr,
+                                        "depth": 3,
+                                        "active": True,
+                                        "parent": 3,
+                                        "children": []
+                                    }
+                                ]
+                            }
+                        ]
+                    }
+                ]
+            }
+        ],
+        "node_data": {
+            "1": {
+                "role": "Landlord",
+                "lessee": landlord_addr,
+                "depth": 0,
+                "active": True,
+                "parent": None
+            },
+            "2": {
+                "role": "Tenant",
+                "lessee": tenant_addr,
+                "depth": 1,
+                "active": True,
+                "parent": 1
+            },
+            "3": {
+                "role": "You - Subleaser",
+                "lessee": subleaser_addr,
+                "depth": 2,
+                "active": True,
+                "parent": 2
+            },
+            "4": {
+                "role": "Subtenant 1",
+                "lessee": subtenant1_addr,
+                "depth": 3,
+                "active": True,
+                "parent": 3
+            },
+            "5": {
+                "role": "Subtenant 2",
+                "lessee": subtenant2_addr,
+                "depth": 3,
+                "active": True,
+                "parent": 3
+            },
+            "6": {
+                "role": "Subtenant 3",
+                "lessee": subtenant3_addr,
+                "depth": 3,
+                "active": True,
+                "parent": 3
+            }
+        }
+    }
+    
+    # For demo purposes, always return mock tree with the specified addresses
+    # TODO: In production, implement real blockchain queries here
+    return mock_tree
+
+
+def generate_ascii_tree(trees: List[Dict[str, Any]], prefix: str = "", is_last: bool = True) -> str:
+    """
+    Generate ASCII tree representation from tree structure
+    """
+    if not trees:
+        return ""
+    
+    tree_lines = []
+    for i, node in enumerate(trees):
+        is_last_node = i == len(trees) - 1
+        node_prefix = "└── " if is_last_node else "├── "
+        tree_lines.append(prefix + node_prefix + str(node['id']))
+        
+        if node.get('children'):
+            child_prefix = prefix + ("    " if is_last_node else "│   ")
+            child_tree = generate_ascii_tree(node['children'], child_prefix, is_last_node)
+            if child_tree:
+                tree_lines.append(child_tree)
+    
+    return "\n".join(tree_lines)
 

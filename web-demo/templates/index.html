@@ -26,6 +26,10 @@
                     <span class="nav-icon">⚡</span>
                     <span class="nav-text">Utilities</span>
                 </button>
+                <button class="nav-item" data-tab="tree">
+                    <span class="nav-icon">🌳</span>
+                    <span class="nav-text">Lease Tree</span>
+                </button>
             </nav>
         </aside>
 
@@ -90,11 +94,88 @@
                             </tr>
                             <tr class="info-row">
                                 <td class="info-label">Lease ID</td>
-                                <td class="info-value" id="leaseId">4</td>
+                                <td class="info-value" id="leaseId">CA77YCFIJKLMNOPQRSTUVWXYZ1234567890ABCDEF</td>
                             </tr>
                             <tr class="info-row">
                                 <td class="info-label">Status</td>
                                 <td class="info-value"><span class="status-badge pending" id="leaseStatus">Pending</span></td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="table-container" style="margin-top: 20px;">
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th colspan="2">SEP-10 Authentication</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr class="info-row">
+                                <td class="info-label">Stellar Account</td>
+                                <td class="info-value">
+                                    <input type="text" id="sep10Account" placeholder="G..." style="width: 100%; padding: 6px; border: 1px solid #808080; font-family: monospace;">
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="table-container" style="margin-top: 20px;">
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th colspan="2">SEP-12 KYC Information</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr class="info-row">
+                                <td class="info-label">First Name</td>
+                                <td class="info-value">
+                                    <input type="text" id="kycFirstName" placeholder="John" style="width: 100%; padding: 6px; border: 1px solid #808080;">
+                                </td>
+                            </tr>
+                            <tr class="info-row">
+                                <td class="info-label">Last Name</td>
+                                <td class="info-value">
+                                    <input type="text" id="kycLastName" placeholder="Doe" style="width: 100%; padding: 6px; border: 1px solid #808080;">
+                                </td>
+                            </tr>
+                            <tr class="info-row">
+                                <td class="info-label">Email</td>
+                                <td class="info-value">
+                                    <input type="email" id="kycEmail" placeholder="john.doe@example.com" style="width: 100%; padding: 6px; border: 1px solid #808080;">
+                                </td>
+                            </tr>
+                            <tr class="info-row">
+                                <td class="info-label">Phone</td>
+                                <td class="info-value">
+                                    <input type="tel" id="kycPhone" placeholder="+1-555-123-4567" style="width: 100%; padding: 6px; border: 1px solid #808080;">
+                                </td>
+                            </tr>
+                            <tr class="info-row">
+                                <td class="info-label">Date of Birth</td>
+                                <td class="info-value">
+                                    <input type="date" id="kycDOB" style="width: 100%; padding: 6px; border: 1px solid #808080;">
+                                </td>
+                            </tr>
+                            <tr class="info-row">
+                                <td class="info-label">ID Type</td>
+                                <td class="info-value">
+                                    <select id="kycIDType" style="width: 100%; padding: 6px; border: 1px solid #808080;">
+                                        <option value="">Select...</option>
+                                        <option value="drivers_license">Driver's License</option>
+                                        <option value="passport">Passport</option>
+                                        <option value="national_id">National ID</option>
+                                    </select>
+                                </td>
+                            </tr>
+                            <tr class="info-row">
+                                <td class="info-label">ID Number</td>
+                                <td class="info-value">
+                                    <input type="text" id="kycIDNumber" placeholder="DL123456789" style="width: 100%; padding: 6px; border: 1px solid #808080;">
+                                </td>
                             </tr>
                         </tbody>
                     </table>
@@ -136,6 +217,13 @@
                     <button class="btn-primary" onclick="calculateSplit()" id="btnSplit">Calculate Cost Split</button>
                 </div>
                 <div class="result-panel" id="resultSplit"></div>
+            </div>
+
+            <div class="tab-content" id="tab-tree">
+                <div style="margin-top: 15px;">
+                    <button class="btn-primary" onclick="loadLeaseTree()" id="btnLoadTree">Load Tree</button>
+                </div>
+                <div class="result-panel" id="resultTree"></div>
             </div>
         </main>
     </div>
