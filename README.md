@@ -1,134 +1,48 @@
-# Lease Lock System
+## a. Demo Video
 
-A comprehensive lease management system built on Stellar blockchain with hierarchical sublease support and IoT lock integration.
+## b. Screenshots
 
-## Architecture
+![Lease Tree](lease_tree_screenshot.png)
+*Visual representation of the lease tree structure*
 
-The system consists of three main components:
+![Payments](payments_screenshot.png)
+*Payments dashboard showing rent and transaction history*
 
-- **Lease Registry Contract** (`leaselock/`): Soroban smart contract managing lease hierarchies
-- **Client Scripts** (`client/`): Python scripts for interacting with the contract
-- **IoT Lock System** (`lock/`): Physical lock control and monitoring
-- **Anchor Service** (`anchor/`): Web service for lock management
+![Utilities](utilities_screenshot.png)
+*Utilities tracking and cost split interface*
 
-## Terms Enforcement
+![Auctions](auctions_screenshot.png)
+*Auction functionality for property assets*
 
-The system enforces identical contract terms across all leases in a chain using SHA-256 hashing of canonical JSON.
+![Lock](lock_screenshot.png)
+*Smart lock for immediate physical access upon lease/sublease*
 
-### Workflow
+## c. Smart contracts
 
-1. **Define Terms**: Create `terms.json` with immutable lease parameters
-2. **Generate Hash**: Use `python client/scripts/hash_terms.py terms.json`
-3. **Create Master**: Deploy master lease with terms hash
-4. **Create Subleases**: All subleases must use identical terms hash
-5. **Validate**: Contract automatically validates terms at each step
+### LeaseRegistry
 
-### Example Terms JSON
+Each lease/sublease takes the form of a LeaseRegistry smart contract, which contains information about the lessor, lessee, parent lease (if not top level), and terms of the lease (utilities, time). A landlord (lessor) role can create_master() for a root node, and tenants/subtenants (lessees) with the parent.lessee role can create_sublease() to sublet and accept a lease. Upon payment, an accepted lease is now active and emits LeaseActivated. This in turn enables physical access systems to function (mocked as a digital lock in the demo). Likewise, if rent is past due, a lease will be deactivated automatically.
 
-```json
-{
-  "currency": "USD",
-  "rent_amount": "1200.00",
-  "due_day": 1,
-  "deposit_amount": "1200.00",
-  "late_fee_policy": {"percent": 5, "grace_days": 3},
-  "utilities_policy": {"electric": "tenant", "gas": "tenant", "water": "tenant"},
-  "insurance_required": true,
-  "lock_policy": {"auto_revoke_on_delinquent": true},
-  "sublease_limit_per_node": 2
-}
-```
+### UtilitiesOracle
 
-### CLI Commands
+Any role (lessor, lessee) can get_reading() for utilities, which provides an amount in XLM that can be settled with the same payment system as the leases. This allows for granular protation of utilities based on exact consumption during a sublease.
 
-```bash
-# Generate terms hash
-TERMS_HEX=$(python client/scripts/hash_terms.py terms.json)
+## d. Video
 
-# Create master lease
-stellar contract invoke --id lease-registry-inst -- \
-  create_master --unit unit:NYC:123-A \
-  --landlord G...LAND --master G...TEN \
-  --terms $TERMS_HEX --limit 2 --expiry-ts 2000000000
+## e. Demo site
 
-# Create sublease (same terms)
-stellar contract invoke --id lease-registry-inst -- \
-  create_sublease --parent-id 1 --sublessee G...SUB1 \
-  --terms $TERMS_HEX --limit 2 --expiry-ts 2000000000
-```
+[Live Demo Site](https://leaselock.vercel.app)
 
-## Error Handling
+## f. Public video and site
 
-The system provides clear error messages for common issues:
+## g. Smart contract links on stellar.expert
 
-- `terms-mismatch`: Sublease terms don't match parent
-- `limit-mismatch`: Sublease limit doesn't match parent  
-- `terms-drift`: Terms validation failed during acceptance
-- `self-sublease`: Cannot sublease to self
-- `limit`: Parent has reached sublease capacity
+LeaseRegistry: https://stellar.expert/explorer/testnet/contract/CDBFB6YDB55G7E5ZGOHYIYBLS745NVBU73TKLB6N6IT6XBKBWICNUW5I
 
-## Testing
+UtilitiesOracle: https://stellar.expert/explorer/testnet/contract/CDDO7X23GQ7J3KXACSIFRIY6T7MESM5EACTX7ZAHRRQZZIW2LYUPIX77
 
-### Contract Tests
-```bash
-cd leaselock/contracts/lease_registry
-cargo test
-```
+## h. Extensions
 
-### Integration Tests
-```bash
-cd client/scripts
-python test_lease_graph.py
-```
+Insurance verification via oracle
 
-### Terms Hash Examples
-```bash
-cd client/scripts
-python terms_hash_example.py
-```
-
-## Security Features
-
-- **Immutable Terms**: Master lease terms cannot be changed after creation
-- **Chain Validation**: All subleases inherit identical terms from parent
-- **Cryptographic Verification**: SHA-256 hashing ensures terms integrity
-- **Defense in Depth**: Validation at creation, acceptance, and activation
-
-## Components
-
-### Lease Registry Contract
-- Hierarchical lease management
-- Terms enforcement via SHA-256 hashing
-- Event emission for observability
-- Query functions for terms verification
-
-### Client Scripts
-- Terms hash generation utilities
-- Contract interaction helpers
-- Integration test suite
-- Tree visualization tools
-
-### IoT Lock System
-- Physical lock control
-- Lease status monitoring
-- Automatic lock/unlock based on lease state
-
-### Anchor Service
-- Web interface for lock management
-- Deposit and withdrawal handling
-- Integration with lease registry
-
-## Getting Started
-
-1. **Setup Environment**: Configure `.env` files in each component
-2. **Deploy Contract**: Deploy lease registry to Stellar testnet
-3. **Generate Terms**: Create and hash your lease terms JSON
-4. **Create Leases**: Use client scripts to create master and subleases
-5. **Test System**: Run integration tests to verify functionality
-
-## Documentation
-
-- [Lease Registry Contract](leaselock/contracts/lease_registry/README.md)
-- [Client Scripts](client/README.md)
-- [IoT Lock System](lock/README.md)
-- [Anchor Service](anchor/README.md)
+Move-out process and security deposit return via arbitrator
