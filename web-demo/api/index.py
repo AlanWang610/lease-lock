@@ -16,8 +16,8 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from demo_runner import (
     execute_pay_rent,  # Real payment execution
     mock_post_reading,
-    mock_split_utilities,
-    mock_mark_delinquent
+    execute_split_utilities,  # Real utility split calculation
+    execute_place_bid  # Real auction bid placement
 )
 
 # Get the base directory (web-demo)
@@ -60,25 +60,22 @@ def post_reading():
 
 @app.route('/api/split-utilities', methods=['POST'])
 def split_utilities():
-    """Execute utility cost splitting demo"""
+    """Execute utility cost splitting demo - REAL calculation"""
     try:
-        # Simulate processing time
-        time.sleep(1.5)
-        
-        result = mock_split_utilities()
+        result = execute_split_utilities()
         return jsonify(result), 200
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
 
 
-@app.route('/api/mark-delinquent', methods=['POST'])
-def mark_delinquent():
-    """Execute delinquency marking demo"""
+@app.route('/api/place-bid', methods=['POST'])
+def place_bid():
+    """Place a bid on an auction - REAL blockchain transaction"""
     try:
-        # Simulate processing time
-        time.sleep(1)
+        data = request.json
+        amount = float(data.get('amount', 0))
         
-        result = mock_mark_delinquent()
+        result = execute_place_bid(amount)
         return jsonify(result), 200
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500

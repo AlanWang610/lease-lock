@@ -1,12 +1,10 @@
-// Demo state management
 const demoState = {
     paymentComplete: false,
-    lockUnlocked: false,
-    lockCode: null,
-    currentTab: 'payment'
+    currentBid: 0,
+    auctionWon: false,
+    currentTab: 'auctions'
 };
 
-// Tab switching
 document.addEventListener('DOMContentLoaded', () => {
     const navItems = document.querySelectorAll('.nav-item');
     
@@ -16,108 +14,97 @@ document.addEventListener('DOMContentLoaded', () => {
             switchTab(tab);
         });
     });
-    
-    // Generate a random access code (would normally come from blockchain)
-    demoState.lockCode = generateAccessCode();
 });
 
 function switchTab(tab) {
-    // Update nav
     document.querySelectorAll('.nav-item').forEach(item => {
         item.classList.remove('active');
     });
     document.querySelector(`[data-tab="${tab}"]`).classList.add('active');
     
-    // Update content
     document.querySelectorAll('.tab-content').forEach(content => {
         content.classList.remove('active');
     });
     document.getElementById(`tab-${tab}`).classList.add('active');
     
-    // Update header
     updateHeader(tab);
-    
     demoState.currentTab = tab;
 }
 
 function updateHeader(tab) {
     const titles = {
-        payment: { title: 'Payment & Rent', subtitle: 'Pay rent and activate your lease' },
-        utilities: { title: 'Utilities', subtitle: 'Post readings and split costs' },
-        'smart-lock': { title: 'Smart Lock', subtitle: 'Access code and lock status' },
-        delinquency: { title: 'Manage Status', subtitle: 'View and update lease status' }
+        auctions: { title: 'Auctions', subtitle: 'Second-price auction listings' },
+        payment: { title: 'Payments', subtitle: 'Lease payment and activation' },
+        utilities: { title: 'Utilities', subtitle: 'Meter readings and cost allocation' }
     };
     
-    const info = titles[tab] || titles.payment;
+    const info = titles[tab] || titles.auctions;
     document.getElementById('pageTitle').textContent = info.title;
     document.getElementById('pageSubtitle').textContent = info.subtitle;
 }
 
-function generateAccessCode() {
-    // Generate an 8-digit code (normally from blockchain)
-    return Math.floor(10000000 + Math.random() * 90000000).toString();
-}
-
-function showCode() {
-    const codeDisplay = document.getElementById('codeDisplay');
-    const btnShowCode = document.getElementById('btnShowCode');
+async function placeBid() {
+    const bidInput = document.getElementById('bidAmount');
+    const btn = document.getElementById('btnPlaceBid');
+    const result = document.getElementById('resultAuction');
+    const currentBidDisplay = document.getElementById('currentBid');
     
-    if (codeDisplay.textContent === '••••••••') {
-        codeDisplay.textContent = demoState.lockCode;
-        codeDisplay.style.letterSpacing = 'normal';
-        btnShowCode.textContent = 'Hide Code';
-    } else {
-        codeDisplay.textContent = '••••••••';
-        codeDisplay.style.letterSpacing = '8px';
-        btnShowCode.textContent = 'Show Access Code';
+    const bidAmount = parseFloat(bidInput.value);
+    
+    if (!bidAmount || bidAmount < 3500) {
+        alert('Minimum bid: 3,500 XLM');
+        return;
     }
+    
+    btn.disabled = true;
+    btn.textContent = 'Processing...';
+    result.innerHTML = '<div class="loading">Placing bid on blockchain</div>';
+    
+    try {
+        const response = await fetch('/api/place-bid', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ amount: bidAmount })
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            demoState.currentBid = bidAmount;
+            currentBidDisplay.textContent = `${bidAmount.toLocaleString()} XLM`;
+            
+            let html = '<div class="result-success">';
+            html += '<h3>Bid Placed</h3>';
+            html += `<p>Amount: ${bidAmount.toLocaleString()} XLM</p>`;
+            
+            if (data.tx_hash) {
+                html += `<p>Transaction: <code>${data.tx_hash}</code></p>`;
+                html += `<a href="https://stellar.expert/explorer/testnet/tx/${data.tx_hash}" target="_blank">View Transaction</a>`;
+            }
+            
+            html += '<p style="margin-top: 10px;"><strong>Second-Price Auction:</strong> Winner pays second-highest bid, not own bid amount.</p>';
+            html += '<p style="margin-top: 10px;">Tokens escrowed in smart contract. Viewable on Stellar Expert.</p>';
+            
+            html += '</div>';
+            result.innerHTML = html;
+            demoState.auctionWon = true;
+        }
+    } catch (error) {
+        result.innerHTML = `<div class="result-error">Error: ${error.message}</div>`;
+    }
+    
+    btn.disabled = false;
+    btn.textContent = 'Place Bid';
 }
 
-function unlockDoor() {
-    const lockIcon = document.getElementById('lockIcon');
-    const lockStatus = document.getElementById('lockStatus');
-    const lockMessage = document.getElementById('lockMessage');
-    const lockHistory = document.getElementById('lockHistory');
-    const lockCodeSection = document.getElementById('lockCodeSection');
-    
-    lockIcon.textContent = '🔓';
-    lockIcon.classList.add('unlocked');
-    lockStatus.textContent = 'UNLOCKED';
-    lockStatus.style.color = '#10b981';
-    lockMessage.textContent = 'Lease activated • Access granted';
-    lockMessage.style.color = '#10b981';
-    lockHistory.textContent = `Unlocked at ${new Date().toLocaleTimeString()} • Activated via payment`;
-    lockCodeSection.style.display = 'block';
-    
-    demoState.lockUnlocked = true;
-}
-
-function lockDoor() {
-    const lockIcon = document.getElementById('lockIcon');
-    const lockStatus = document.getElementById('lockStatus');
-    const lockMessage = document.getElementById('lockMessage');
-    const lockHistory = document.getElementById('lockHistory');
-    
-    lockIcon.textContent = '🔒';
-    lockIcon.classList.remove('unlocked');
-    lockStatus.textContent = 'LOCKED';
-    lockStatus.style.color = '#ef4444';
-    lockMessage.textContent = 'Lease delinquent • Access revoked';
-    lockMessage.style.color = '#ef4444';
-    lockHistory.textContent = `Locked at ${new Date().toLocaleTimeString()} • Marked as delinquent`;
-    
-    demoState.lockUnlocked = false;
-}
-
-// Run payment demo
 async function runPayRent() {
     const btn = document.getElementById('btnPay');
     const result = document.getElementById('resultPayment');
     const leaseStatus = document.getElementById('leaseStatus');
     
     btn.disabled = true;
-    btn.textContent = 'Processing Payment...';
-    result.innerHTML = '<div class="loading">⏳ Processing payment and activating lease...</div>';
+    btn.textContent = 'Processing...';
+    result.innerHTML = '<div class="loading">Executing payment transaction</div>';
     
     try {
         const response = await fetch('/api/pay-rent', { method: 'POST' });
@@ -125,10 +112,10 @@ async function runPayRent() {
         
         if (data.success) {
             let html = '<div class="result-success">';
-            html += '<h3>✓ Payment & Activation Complete</h3>';
+            html += '<h3>Payment & Activation Complete</h3>';
             
             data.steps.forEach((step, idx) => {
-                html += `<div class="transaction-detail">`;
+                html += '<div class="transaction-detail">';
                 html += `<strong>${step.name}:</strong><br>`;
                 html += `Transaction: <code>${step.tx_hash}</code><br>`;
                 if (step.from) html += `From: <code>${step.from}</code><br>`;
@@ -136,11 +123,10 @@ async function runPayRent() {
                 if (step.amount) html += `Amount: ${step.amount}<br>`;
                 if (step.lease_id) html += `Lease ID: ${step.lease_id}<br>`;
                 if (step.lock_status) html += `Lock: <strong>${step.lock_status}</strong><br>`;
-                html += `<a href="${step.explorer_url}" target="_blank">🔗 View Transaction</a>`;
-                html += `</div>`;
+                html += `<a href="${step.explorer_url}" target="_blank">View Transaction</a>`;
+                html += '</div>';
                 
                 if (step.lock_status === 'UNLOCKED') {
-                    unlockDoor();
                     leaseStatus.textContent = 'Active';
                     leaseStatus.className = 'status-badge active';
                 }
@@ -148,9 +134,8 @@ async function runPayRent() {
             
             html += '</div>';
             if (data.note) {
-                html += `<p style="color: #f59e0b; margin-top: 10px;">${data.note}</p>`;
+                html += `<p style="color: #808080; margin-top: 10px;">${data.note}</p>`;
             }
-            html += '</div>';
             result.innerHTML = html;
             demoState.paymentComplete = true;
         }
@@ -159,17 +144,16 @@ async function runPayRent() {
     }
     
     btn.disabled = false;
-    btn.textContent = 'Pay Rent & Activate';
+    btn.textContent = 'Execute Payment & Activation';
 }
 
-// Run post reading demo
-async function runPostReading() {
-    const btn = document.getElementById('btnPostReading');
+async function fetchUtilities() {
+    const btn = document.getElementById('btnFetchUtils');
     const result = document.getElementById('resultReading');
     
     btn.disabled = true;
-    btn.textContent = 'Posting Reading...';
-    result.innerHTML = '<div class="loading">⏳ Posting utility reading to blockchain...</div>';
+    btn.textContent = 'Fetching...';
+    result.innerHTML = '<div class="loading">Fetching utility readings from oracle</div>';
     
     try {
         const response = await fetch('/api/post-reading', { method: 'POST' });
@@ -177,16 +161,17 @@ async function runPostReading() {
         
         if (data.success) {
             let html = '<div class="result-success">';
-            html += '<h3>✓ Utility Reading Posted</h3>';
-            html += `<div class="transaction-detail">`;
-            html += `<strong>Unit:</strong> ${data.unit}<br>`;
+            html += '<h3>Utility Readings Retrieved</h3>';
+            html += '<div class="transaction-detail">';
+            html += `<strong>Property:</strong> 285 Washington St, Somerville, MA 02143<br>`;
             html += `<strong>Period:</strong> ${data.period}<br>`;
-            html += `<strong>Electricity:</strong> ${data.readings.electricity}<br>`;
-            html += `<strong>Gas:</strong> ${data.readings.gas}<br>`;
-            html += `<strong>Water:</strong> ${data.readings.water}<br>`;
+            html += `<strong>Readings:</strong><br>`;
+            html += `Electricity: ${data.readings.electricity}<br>`;
+            html += `Gas: ${data.readings.gas}<br>`;
+            html += `Water: ${data.readings.water}<br>`;
             html += `Transaction: <code>${data.tx_hash}</code><br>`;
-            html += `<a href="${data.explorer_url}" target="_blank">🔗 View Transaction</a>`;
-            html += `</div></div>`;
+            html += `<a href="${data.explorer_url}" target="_blank">View Transaction</a>`;
+            html += '</div></div>';
             
             result.innerHTML = html;
         }
@@ -195,17 +180,16 @@ async function runPostReading() {
     }
     
     btn.disabled = false;
-    btn.textContent = 'Post Reading to Blockchain';
+    btn.textContent = 'Fetch Readings';
 }
 
-// Run split utilities demo
-async function runSplitUtilities() {
+async function calculateSplit() {
     const btn = document.getElementById('btnSplit');
     const result = document.getElementById('resultSplit');
     
     btn.disabled = true;
     btn.textContent = 'Calculating...';
-    result.innerHTML = '<div class="loading">⏳ Calculating cost split...</div>';
+    result.innerHTML = '<div class="loading">Calculating cost split</div>';
     
     try {
         const response = await fetch('/api/split-utilities', { method: 'POST' });
@@ -213,18 +197,18 @@ async function runSplitUtilities() {
         
         if (data.success) {
             let html = '<div class="result-success">';
-            html += '<h3>✓ Utility Costs Calculated</h3>';
-            html += `<div class="transaction-detail">`;
+            html += '<h3>Cost Split Calculation</h3>';
+            html += '<div class="transaction-detail">';
             html += `<strong>Period:</strong> ${data.period}<br>`;
-            html += `<strong>Unit:</strong> ${data.unit}<br>`;
-            html += `<strong>Active Leases:</strong> ${data.active_leases}<br><br>`;
+            html += `<strong>Property:</strong> 285 Washington St, Somerville, MA 02143<br>`;
+            html += `<strong>Active Leases Sharing:</strong> ${data.active_leases}<br><br>`;
             html += `<strong>Total Usage:</strong> ${data.total_usage.electricity}, ${data.total_usage.gas}, ${data.total_usage.water}<br><br>`;
-            html += `<strong>Cost Breakdown (per lease):</strong><br>`;
-            html += `  • Electricity: ${data.breakdown.electricity}<br>`;
-            html += `  • Gas: ${data.breakdown.gas}<br>`;
-            html += `  • Water: ${data.breakdown.water}<br>`;
+            html += `<strong>Cost Breakdown:</strong><br>`;
+            html += `Electricity: ${data.breakdown.electricity}<br>`;
+            html += `Gas: ${data.breakdown.gas}<br>`;
+            html += `Water: ${data.breakdown.water}<br>`;
             html += `<strong>Total per lease: ${data.per_lease_cost}</strong>`;
-            html += `</div></div>`;
+            html += '</div></div>';
             
             result.innerHTML = html;
         }
@@ -236,68 +220,8 @@ async function runSplitUtilities() {
     btn.textContent = 'Calculate Cost Split';
 }
 
-// Run mark delinquent demo
-async function runMarkDelinquent() {
-    const btn = document.getElementById('btnDelinquent');
-    const result = document.getElementById('resultDelinquent');
-    const leaseStatus = document.getElementById('leaseStatus');
-    
-    btn.disabled = true;
-    btn.textContent = 'Processing...';
-    result.innerHTML = '<div class="loading">⏳ Marking lease as delinquent...</div>';
-    
-    try {
-        const response = await fetch('/api/mark-delinquent', { method: 'POST' });
-        const data = await response.json();
-        
-        if (data.success) {
-            let html = '<div class="result-success">';
-            html += '<h3>✓ Lease Marked as Delinquent</h3>';
-            html += `<div class="transaction-detail">`;
-            html += `<strong>Lease ID:</strong> ${data.lease_id}<br>`;
-            html += `<strong>Status:</strong> <span style="color: #ef4444;">${data.status.toUpperCase()}</span><br>`;
-            html += `<strong>Lock Status:</strong> <strong>${data.lock_status}</strong><br>`;
-            html += `Transaction: <code>${data.tx_hash}</code><br>`;
-            html += `<a href="${data.explorer_url}" target="_blank">🔗 View Transaction</a>`;
-            html += `</div></div>`;
-            
-            result.innerHTML = html;
-            lockDoor();
-            leaseStatus.textContent = 'Delinquent';
-            leaseStatus.className = 'status-badge locked';
-        }
-    } catch (error) {
-        result.innerHTML = `<div class="result-error">Error: ${error.message}</div>`;
-    }
-    
-    btn.disabled = false;
-    btn.textContent = 'Mark Lease as Delinquent';
-}
-
 function resetAll() {
-    if (confirm('Reset all demo state? This will clear all results and lock status.')) {
-        // Reset state
-        demoState.paymentComplete = false;
-        demoState.lockUnlocked = false;
-        
-        // Reset UI
-        document.querySelectorAll('.result-panel').forEach(panel => {
-            panel.innerHTML = '';
-        });
-        
-        // Reset buttons
-        document.querySelectorAll('.btn-primary').forEach(btn => {
-            btn.disabled = false;
-        });
-        
-        // Reset lease status
-        document.getElementById('leaseStatus').textContent = 'Pending';
-        document.getElementById('leaseStatus').className = 'status-badge pending';
-        
-        // Reset lock
-        lockDoor();
-        document.getElementById('lockCodeSection').style.display = 'none';
-        
-        alert('Demo reset!');
+    if (confirm('Reset all demo state?')) {
+        location.reload();
     }
 }

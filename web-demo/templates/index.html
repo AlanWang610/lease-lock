@@ -3,210 +3,139 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Lease-Lock Dashboard</title>
+    <title>Lease-Lock</title>
     <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
     <div class="dashboard">
-        <!-- Sidebar -->
         <aside class="sidebar">
             <div class="logo">
-                <div class="logo-icon">🔐</div>
-                <h1>Lease-Lock</h1>
+                <img src="/static/LeaseLock.png" alt="Lease-Lock" class="logo-image">
             </div>
             
             <nav class="nav-menu">
-                <button class="nav-item active" data-tab="payment">
+                <button class="nav-item active" data-tab="auctions">
+                    <span class="nav-icon">🏢</span>
+                    <span class="nav-text">Auctions</span>
+                </button>
+                <button class="nav-item" data-tab="payment">
                     <span class="nav-icon">💳</span>
-                    <span class="nav-text">Payment & Rent</span>
+                    <span class="nav-text">Payments</span>
                 </button>
                 <button class="nav-item" data-tab="utilities">
                     <span class="nav-icon">⚡</span>
                     <span class="nav-text">Utilities</span>
                 </button>
-                <button class="nav-item" data-tab="smart-lock">
-                    <span class="nav-icon">🚪</span>
-                    <span class="nav-text">Smart Lock</span>
-                </button>
-                <button class="nav-item" data-tab="delinquency">
-                    <span class="nav-icon">⚠️</span>
-                    <span class="nav-text">Manage Status</span>
-                </button>
             </nav>
         </aside>
 
-        <!-- Main Content -->
         <main class="content">
-            <!-- Header -->
             <header class="content-header">
                 <div>
-                    <h2 class="page-title" id="pageTitle">Payment & Rent</h2>
-                    <p class="page-subtitle" id="pageSubtitle">Pay rent and activate your lease</p>
+                    <h2 class="page-title" id="pageTitle">Auctions</h2>
+                    <p class="page-subtitle" id="pageSubtitle">Second-price auction listings</p>
                 </div>
                 <div class="header-actions">
-                    <button class="btn-secondary" onclick="resetAll()">Reset All</button>
+                    <button class="btn-secondary" onclick="resetAll()">Reset</button>
                 </div>
             </header>
 
-            <!-- Tab Content: Payment -->
-            <div class="tab-content active" id="tab-payment">
-                <div class="dashboard-grid">
-                    <div class="card">
-                        <h3 class="card-title">📋 Lease Information</h3>
-                        <div class="info-grid">
-                            <div class="info-item">
-                                <span class="info-label">Property Address:</span>
-                                <span class="info-value" id="unitInfo">285 Washington St, Somerville, MA 02143</span>
-                            </div>
-                            <div class="info-item">
-                                <span class="info-label">Monthly Rent:</span>
-                                <span class="info-value">3.5 XLM</span>
-                            </div>
-                            <div class="info-item">
-                                <span class="info-label">Lease ID:</span>
-                                <span class="info-value" id="leaseId">4</span>
-                            </div>
-                            <div class="info-item">
-                                <span class="info-label">Status:</span>
-                                <span class="status-badge pending" id="leaseStatus">Pending</span>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="card">
-                        <h3 class="card-title">💳 Payment & Activation</h3>
-                        <p class="card-description">
-                            Send rent payment to your landlord and activate the lease to unlock your door.
-                        </p>
-                        <div style="background: #dbeafe; border-left: 3px solid #3b82f6; padding: 12px; margin-bottom: 15px; border-radius: 6px;">
-                            <strong>⚠️ Real Transaction:</strong> This uses actual Stellar testnet blockchain transactions. Your payment will be recorded on-chain.
-                        </div>
-                        <button class="btn-primary btn-large" onclick="runPayRent()" id="btnPay">
-                            Pay Rent & Activate
-                        </button>
-                        <div class="result-panel" id="resultPayment"></div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Tab Content: Utilities -->
-            <div class="tab-content" id="tab-utilities">
-                <div class="dashboard-grid">
-                    <div class="card">
-                        <h3 class="card-title">📊 Post Utility Reading</h3>
-                        <p class="card-description">
-                            Record utility meter readings to the blockchain oracle.
-                        </p>
-                        <div class="utility-display">
-                            <div class="utility-item">
-                                <span class="utility-icon">⚡</span>
-                                <span class="utility-name">Electricity</span>
-                                <span class="utility-value">320 kWh</span>
-                            </div>
-                            <div class="utility-item">
-                                <span class="utility-icon">🔥</span>
-                                <span class="utility-name">Gas</span>
-                                <span class="utility-value">14 units</span>
-                            </div>
-                            <div class="utility-item">
-                                <span class="utility-icon">💧</span>
-                                <span class="utility-name">Water</span>
-                                <span class="utility-value">6,800 units</span>
-                            </div>
-                        </div>
-                        <button class="btn-primary btn-large" onclick="runPostReading()" id="btnPostReading">
-                            Post Reading to Blockchain
-                        </button>
-                        <div class="result-panel" id="resultReading"></div>
-                    </div>
-
-                    <div class="card">
-                        <h3 class="card-title">💰 Split Utility Costs</h3>
-                        <p class="card-description">
-                            Calculate and allocate utility costs among active leases.
-                        </p>
-                        <button class="btn-primary btn-large" onclick="runSplitUtilities()" id="btnSplit">
-                            Calculate Cost Split
-                        </button>
-                        <div class="result-panel" id="resultSplit"></div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Tab Content: Smart Lock -->
-            <div class="tab-content" id="tab-smart-lock">
-                <div class="dashboard-grid">
-                    <div class="card lock-card">
-                        <div class="lock-container">
-                            <div class="lock-display">
-                                <div class="lock-icon" id="lockIcon">🔒</div>
-                                <div class="lock-status" id="lockStatus">LOCKED</div>
-                                <div class="lock-message" id="lockMessage">Payment required to unlock</div>
-                            </div>
-                            
-                            <div class="lock-code-section" id="lockCodeSection" style="display: none;">
-                                <div class="code-display" id="codeDisplay">••••••••</div>
-                                <button class="btn-secondary btn-small" onclick="showCode()" id="btnShowCode">
-                                    Show Access Code
-                                </button>
-                            </div>
-
-                            <div class="lock-actions">
-                                <div class="history-item">
-                                    <span class="history-icon">📝</span>
-                                    <div class="history-content">
-                                        <div class="history-title">Last Activity</div>
-                                        <div class="history-detail" id="lockHistory">Waiting for payment...</div>
+            <div class="tab-content active" id="tab-auctions">
+                <div class="table-container">
+                    <table class="auction-table">
+                        <thead>
+                            <tr>
+                                <th>Property</th>
+                                <th>Reserve</th>
+                                <th>Current Bid</th>
+                                <th>Time Left</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><strong>285 Washington St<br>Somerville, MA 02143</strong></td>
+                                <td>3,500 XLM</td>
+                                <td id="currentBid">0 XLM</td>
+                                <td>2d 4h</td>
+                                <td>
+                                    <div class="bid-container">
+                                        <input type="number" id="bidAmount" class="bid-input" placeholder="Amount" min="3500" step="100">
+                                        <button class="btn-primary" onclick="placeBid()" id="btnPlaceBid">Place Bid</button>
                                     </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="card">
-                        <h3 class="card-title">🔑 Access Code Generator</h3>
-                        <p class="card-description">
-                            Once your lease is activated, you'll receive a unique access code for your smart lock.
-                        </p>
-                        <div class="code-info">
-                            <p><strong>How it works:</strong></p>
-                            <ol>
-                                <li>Make your rent payment</li>
-                                <li>Lease gets activated on blockchain</li>
-                                <li>Receive unique access code</li>
-                                <li>Code works until lease expires or becomes delinquent</li>
-                            </ol>
-                        </div>
-                    </div>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
                 </div>
+                <div class="result-panel" id="resultAuction"></div>
             </div>
 
-            <!-- Tab Content: Delinquency -->
-            <div class="tab-content" id="tab-delinquency">
-                <div class="dashboard-grid">
-                    <div class="card">
-                        <h3 class="card-title">⚠️ Lease Management</h3>
-                        <p class="card-description">
-                            Manage lease status and handle delinquency scenarios.
-                        </p>
-                        <button class="btn-danger btn-large" onclick="runMarkDelinquent()" id="btnDelinquent">
-                            Mark Lease as Delinquent
-                        </button>
-                        <p class="warning-text">
-                            ⚠️ This will lock the door and revoke access.
-                        </p>
-                        <div class="result-panel" id="resultDelinquent"></div>
-                    </div>
-
-                    <div class="card">
-                        <h3 class="card-title">📜 Transaction History</h3>
-                        <div class="transaction-list" id="txHistory">
-                            <div class="transaction-item">
-                                <span class="tx-status pending">No transactions yet</span>
-                            </div>
-                        </div>
-                    </div>
+            <div class="tab-content" id="tab-payment">
+                <div class="table-container">
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th colspan="2">Lease Information</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr class="info-row">
+                                <td class="info-label">Property Address</td>
+                                <td class="info-value" id="unitInfo">285 Washington St, Somerville, MA 02143</td>
+                            </tr>
+                            <tr class="info-row">
+                                <td class="info-label">Monthly Rent</td>
+                                <td class="info-value">3,500 XLM</td>
+                            </tr>
+                            <tr class="info-row">
+                                <td class="info-label">Lease ID</td>
+                                <td class="info-value" id="leaseId">4</td>
+                            </tr>
+                            <tr class="info-row">
+                                <td class="info-label">Status</td>
+                                <td class="info-value"><span class="status-badge pending" id="leaseStatus">Pending</span></td>
+                            </tr>
+                        </tbody>
+                    </table>
                 </div>
+
+                <div style="margin-top: 15px;">
+                    <button class="btn-primary" onclick="runPayRent()" id="btnPay">Execute Payment & Activation</button>
+                </div>
+                <div class="result-panel" id="resultPayment"></div>
+            </div>
+
+            <div class="tab-content" id="tab-utilities">
+                <div class="table-container" style="margin-bottom: 15px;">
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>Utility Readings</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>
+                                    <strong>Electricity:</strong> 320 kWh<br>
+                                    <strong>Gas:</strong> 14 units<br>
+                                    <strong>Water:</strong> 6,800 units
+                                </td>
+                                <td>
+                                    <button class="btn-primary" onclick="fetchUtilities()" id="btnFetchUtils">Fetch Readings</button>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="result-panel" id="resultReading"></div>
+
+                <div style="margin-top: 15px;">
+                    <button class="btn-primary" onclick="calculateSplit()" id="btnSplit">Calculate Cost Split</button>
+                </div>
+                <div class="result-panel" id="resultSplit"></div>
             </div>
         </main>
     </div>
