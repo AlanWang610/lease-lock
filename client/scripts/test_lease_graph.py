@@ -8,25 +8,21 @@ of the lease relationships created.
 
 import os
 import json
-import hashlib
-import binascii
+import sys
 from dotenv import load_dotenv
 from stellar_sdk import Keypair, Network, Address, TransactionBuilder
 from stellar_sdk import SorobanServer
 from stellar_sdk import scval
 from collections import defaultdict
 
+# Add the scripts directory to the path to import common
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+from common import generate_terms_hash, hex_to_bytes
+
 load_dotenv()
 rpc = SorobanServer(os.environ["SOROBAN_RPC"])
 pp = Network.TESTNET_NETWORK_PASSPHRASE
 contract_id = "CDBFB6YDB55G7E5ZGOHYIYBLS745NVBU73TKLB6N6IT6XBKBWICNUW5I"
-
-# Generate terms hash (canonical JSON format)
-def generate_terms_hash(terms_dict):
-    """Generate SHA-256 hash of canonical JSON terms"""
-    canon = json.dumps(terms_dict, separators=(',', ':'), sort_keys=True).encode()
-    h = hashlib.sha256(canon).digest()
-    return binascii.hexlify(h).decode()
 
 def print_tree_structure(leases_data, kids_data):
     """Print a visual tree of the lease structure"""
@@ -137,13 +133,18 @@ def main():
     
     # Generate terms hash
     terms_dict = {
-        "rent": "500.00",
+        "currency": "USD",
+        "rent_amount": "1200.00",
         "due_day": 1,
-        "notice_days": 30,
-        "penalty": "0.02"
+        "deposit_amount": "1200.00",
+        "late_fee_policy": {"percent": 5, "grace_days": 3},
+        "utilities_policy": {"electric": "tenant", "gas": "tenant", "water": "tenant"},
+        "insurance_required": True,
+        "lock_policy": {"auto_revoke_on_delinquent": True},
+        "sublease_limit_per_node": 2
     }
     terms_hash_hex = generate_terms_hash(terms_dict)
-    terms_bytes = bytes.fromhex(terms_hash_hex)
+    terms_bytes = hex_to_bytes(terms_hash_hex)
     
     print(f"\nTerms Hash: {terms_hash_hex}")
     print(f"Terms JSON: {json.dumps(terms_dict, separators=(',', ':'))}")
@@ -249,13 +250,18 @@ def main():
     
     # 6) Try to create sublease with wrong terms (should fail)
     wrong_terms_dict = {
-        "rent": "600.00",  # Different rent
+        "currency": "USD",
+        "rent_amount": "1500.00",  # Different rent amount
         "due_day": 1,
-        "notice_days": 30,
-        "penalty": "0.02"
+        "deposit_amount": "1200.00",
+        "late_fee_policy": {"percent": 5, "grace_days": 3},
+        "utilities_policy": {"electric": "tenant", "gas": "tenant", "water": "tenant"},
+        "insurance_required": True,
+        "lock_policy": {"auto_revoke_on_delinquent": True},
+        "sublease_limit_per_node": 2
     }
     wrong_terms_hash = generate_terms_hash(wrong_terms_dict)
-    wrong_terms_bytes = bytes.fromhex(wrong_terms_hash)
+    wrong_terms_bytes = hex_to_bytes(wrong_terms_hash)
     
     print("Testing terms mismatch (should fail)...")
     try:
@@ -276,6 +282,27 @@ def main():
         print("Unexpected success:", result6)
     except Exception as e:
         print("Correctly failed with terms mismatch:", str(e)[:100] + "...")
+    
+    # 7) Try to create sublease with different limit (should fail)
+    print("\nTesting limit mismatch (should fail)...")
+    try:
+        tx7 = TransactionBuilder(tenant_account, network_passphrase=pp, base_fee=100) \
+            .append_invoke_contract_function_op(
+                contract_id=contract_id,
+                function_name="create_sublease",
+                parameters=[
+                    scval.to_uint64(1),  # parent_id
+                    scval.to_address(Address(Keypair.random().public_key)),
+                    scval.to_bytes(terms_bytes),  # correct terms
+                    scval.to_uint32(1),  # different limit (parent has 2)
+                    scval.to_uint64(2000000000)
+                ]
+            ).build()
+        tx7.sign(tenant_kp)
+        result7 = rpc.send_transaction(tx7)
+        print("Unexpected success:", result7)
+    except Exception as e:
+        print("Correctly failed with limit mismatch:", str(e)[:100] + "...")
     
     # Print the lease tree structure
     print("\n" + "="*60)

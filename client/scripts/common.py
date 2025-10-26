@@ -1,4 +1,4 @@
-import os, requests, time
+import os, requests, time, json, hashlib
 from dataclasses import dataclass
 from dotenv import load_dotenv
 from stellar_sdk import Server, Keypair
@@ -33,3 +33,34 @@ def balances(pubkey: str):
         code = "XLM" if b["asset_type"] == "native" else f'{b["asset_code"]}:{b["asset_issuer"]}'
         out[code] = b["balance"]
     return out
+
+def generate_terms_hash(terms_dict):
+    """
+    Generate SHA-256 hash of canonical JSON terms.
+    
+    Args:
+        terms_dict: Dictionary containing lease terms
+        
+    Returns:
+        str: Hex-encoded SHA-256 hash (64 characters)
+    """
+    # Create canonical JSON: sorted keys, no whitespace, UTF-8 encoding
+    canon = json.dumps(terms_dict, separators=(',', ':'), sort_keys=True).encode('utf-8')
+    
+    # Generate SHA-256 hash
+    h = hashlib.sha256(canon).digest()
+    
+    # Return as hex string
+    return h.hex()
+
+def hex_to_bytes(hex_string):
+    """
+    Convert hex string to bytes for Stellar SDK.
+    
+    Args:
+        hex_string: Hex string (64 characters for 32-byte hash)
+        
+    Returns:
+        bytes: Byte representation
+    """
+    return bytes.fromhex(hex_string)

@@ -1,0 +1,20 @@
+{
+  "currency": "USD",
+  "rent_amount": "1200.00",
+  "due_day": 1,
+  "deposit_amount": "1200.00",
+  "late_fee_policy": {
+    "percent": 5,
+    "grace_days": 3
+  },
+  "utilities_policy": {
+    "electric": "tenant",
+    "gas": "tenant",
+    "water": "tenant"
+  },
+  "insurance_required": true,
+  "lock_policy": {
+    "auto_revoke_on_delinquent": true
+  },
+  "sublease_limit_per_node": 2
+}

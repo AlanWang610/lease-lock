@@ -7,35 +7,25 @@ for use with the lease registry contract.
 """
 
 import json
-import hashlib
-import binascii
+import sys
+import os
 
-def generate_terms_hash(terms_dict):
-    """
-    Generate SHA-256 hash of canonical JSON terms.
-    
-    Args:
-        terms_dict: Dictionary containing lease terms
-        
-    Returns:
-        str: Hex-encoded SHA-256 hash (64 characters)
-    """
-    # Create canonical JSON: sorted keys, no whitespace
-    canon = json.dumps(terms_dict, separators=(',', ':'), sort_keys=True).encode()
-    
-    # Generate SHA-256 hash
-    h = hashlib.sha256(canon).digest()
-    
-    # Return as hex string
-    return binascii.hexlify(h).decode()
+# Add the scripts directory to the path to import common
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+from common import generate_terms_hash
 
 def main():
-    # Example lease terms
+    # Example lease terms matching the canonical terms.json format
     terms = {
-        "rent": "500.00",
+        "currency": "USD",
+        "rent_amount": "1200.00",
         "due_day": 1,
-        "notice_days": 30,
-        "penalty": "0.02"
+        "deposit_amount": "1200.00",
+        "late_fee_policy": {"percent": 5, "grace_days": 3},
+        "utilities_policy": {"electric": "tenant", "gas": "tenant", "water": "tenant"},
+        "insurance_required": True,
+        "lock_policy": {"auto_revoke_on_delinquent": True},
+        "sublease_limit_per_node": 2
     }
     
     print("Original terms:")
@@ -47,7 +37,7 @@ def main():
     print(canon)
     print()
     
-    # Generate hash
+    # Generate hash using the common utility
     terms_hash = generate_terms_hash(terms)
     print(f"Terms hash (SHA-256): {terms_hash}")
     print(f"Hash length: {len(terms_hash)} characters")
@@ -59,13 +49,34 @@ def main():
     
     # Show different terms produce different hash
     terms2 = {
-        "rent": "600.00",  # Different rent
+        "currency": "USD",
+        "rent_amount": "1500.00",  # Different rent amount
         "due_day": 1,
-        "notice_days": 30,
-        "penalty": "0.02"
+        "deposit_amount": "1200.00",
+        "late_fee_policy": {"percent": 5, "grace_days": 3},
+        "utilities_policy": {"electric": "tenant", "gas": "tenant", "water": "tenant"},
+        "insurance_required": True,
+        "lock_policy": {"auto_revoke_on_delinquent": True},
+        "sublease_limit_per_node": 2
     }
     hash3 = generate_terms_hash(terms2)
     print(f"Different terms produce different hash: {terms_hash != hash3}")
+    
+    # Test JSON ordering invariance
+    print("\nTesting JSON ordering invariance:")
+    shuffled_terms = {
+        "sublease_limit_per_node": 2,
+        "currency": "USD",
+        "insurance_required": True,
+        "rent_amount": "1200.00",
+        "lock_policy": {"auto_revoke_on_delinquent": True},
+        "due_day": 1,
+        "utilities_policy": {"electric": "tenant", "gas": "tenant", "water": "tenant"},
+        "deposit_amount": "1200.00",
+        "late_fee_policy": {"percent": 5, "grace_days": 3}
+    }
+    hash4 = generate_terms_hash(shuffled_terms)
+    print(f"Shuffled keys produce same hash: {terms_hash == hash4}")
 
 if __name__ == "__main__":
     main()
