@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mock Anchor - Deposit</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 600px;
+            margin: 50px auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            text-align: center;
+        }
+        .transaction-info {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 20px 0;
+        }
+        .info-row {
+            display: flex;
+            justify-content: space-between;
+            margin: 10px 0;
+        }
+        .label {
+            font-weight: bold;
+            color: #666;
+        }
+        .value {
+            color: #333;
+        }
+        .confirm-btn {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            border-radius: 5px;
+            font-size: 16px;
+            cursor: pointer;
+            width: 100%;
+            margin-top: 20px;
+        }
+        .confirm-btn:hover {
+            background: #0056b3;
+        }
+        .status {
+            text-align: center;
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 5px;
+        }
+        .status.incomplete {
+            background: #fff3cd;
+            color: #856404;
+        }
+        .status.completed {
+            background: #d4edda;
+            color: #155724;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Mock Anchor - Deposit</h1>
+        
+        <div class="transaction-info">
+            <div class="info-row">
+                <span class="label">Transaction ID:</span>
+                <span class="value">{{ tx_id }}</span>
+            </div>
+            <div class="info-row">
+                <span class="label">Account:</span>
+                <span class="value">{{ transaction.account }}</span>
+            </div>
+            <div class="info-row">
+                <span class="label">Asset:</span>
+                <span class="value">{{ transaction.asset_code }}</span>
+            </div>
+            <div class="info-row">
+                <span class="label">Amount:</span>
+                <span class="value">5.0 XLM</span>
+            </div>
+        </div>
+        
+        <div class="status {{ transaction.status }}">
+            Status: {{ transaction.status.upper() }}
+        </div>
+        
+        {% if transaction.status == "incomplete" %}
+        <button class="confirm-btn" onclick="confirmDeposit()">
+            Confirm Deposit
+        </button>
+        {% elif transaction.status == "completed" %}
+        <div class="status completed">
+            ✅ Deposit completed!<br>
+            {% if transaction.stellar_transaction_id %}
+            Stellar TX: {{ transaction.stellar_transaction_id }}
+            {% endif %}
+        </div>
+        {% endif %}
+    </div>
+
+    <script>
+        async function confirmDeposit() {
+            try {
+                const response = await fetch(`/sep24/admin/advance?id={{ tx_id }}&status=pending_user_transfer_start`, {
+                    method: 'POST'
+                });
+                
+                if (response.ok) {
+                    // Poll for completion
+                    pollTransaction();
+                } else {
+                    alert('Error confirming deposit');
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                alert('Error confirming deposit');
+            }
+        }
+        
+        async function pollTransaction() {
+            try {
+                const response = await fetch(`/sep24/transaction?id={{ tx_id }}`);
+                const data = await response.json();
+                
+                if (data.transaction.status === 'completed') {
+                    location.reload();
+                } else {
+                    setTimeout(pollTransaction, 2000);
+                }
+            } catch (error) {
+                console.error('Error polling:', error);
+            }
+        }
+    </script>
+</body>
+</html>
