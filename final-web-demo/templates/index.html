@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lease-Lock</title>
+    {% if css_content %}
+    <style>{{ css_content }}</style>
+    {% else %}
+    <link rel="stylesheet" href="/static/style.css">
+    {% endif %}
+</head>
+<body>
+    <div class="dashboard">
+        <aside class="sidebar">
+            <div class="logo">
+                <img src="/static/LeaseLock.png" alt="Lease-Lock" class="logo-image">
+            </div>
+            
+            <nav class="nav-menu">
+                <button class="nav-item active" data-tab="auctions">
+                    <span class="nav-icon">🏢</span>
+                    <span class="nav-text">Auctions</span>
+                </button>
+                <button class="nav-item" data-tab="payment">
+                    <span class="nav-icon">💳</span>
+                    <span class="nav-text">Payments</span>
+                </button>
+                <button class="nav-item" data-tab="utilities">
+                    <span class="nav-icon">⚡</span>
+                    <span class="nav-text">Utilities</span>
+                </button>
+                <button class="nav-item" data-tab="tree">
+                    <span class="nav-icon">🌳</span>
+                    <span class="nav-text">Lease Tree</span>
+                </button>
+            </nav>
+        </aside>
+
+        <main class="content">
+            <header class="content-header">
+                <div>
+                    <h2 class="page-title" id="pageTitle">Auctions</h2>
+                    <p class="page-subtitle" id="pageSubtitle">Second-price auction listings</p>
+                </div>
+                <div class="header-actions">
+                    <button class="btn-secondary" onclick="resetAll()">Reset</button>
+                </div>
+            </header>
+
+            <div class="tab-content active" id="tab-auctions">
+                <div class="table-container">
+                    <table class="auction-table">
+                        <thead>
+                            <tr>
+                                <th>Property</th>
+                                <th>Reserve</th>
+                                <th>Current Bid</th>
+                                <th>Time Left</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><strong>285 Washington St<br>Somerville, MA 02143</strong></td>
+                                <td>3,500 XLM</td>
+                                <td id="currentBid">0 XLM</td>
+                                <td>2d 4h</td>
+                                <td>
+                                    <div class="bid-container">
+                                        <input type="number" id="bidAmount" class="bid-input" placeholder="Amount" min="3500" step="100">
+                                        <button class="btn-primary" onclick="placeBid()" id="btnPlaceBid">Place Bid</button>
+                                    </div>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+                <div class="result-panel" id="resultAuction"></div>
+            </div>
+
+            <div class="tab-content" id="tab-payment">
+                <div class="table-container">
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th colspan="2">Lease Information</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr class="info-row">
+                                <td class="info-label">Property Address</td>
+                                <td class="info-value" id="unitInfo">285 Washington St, Somerville, MA 02143</td>
+                            </tr>
+                            <tr class="info-row">
+                                <td class="info-label">Monthly Rent</td>
+                                <td class="info-value">3,500 XLM</td>
+                            </tr>
+                            <tr class="info-row">
+                                <td class="info-label">Lease ID</td>
+                                <td class="info-value" id="leaseId">CA77YCFIJKLMNOPQRSTUVWXYZ1234567890ABCDEF</td>
+                            </tr>
+                            <tr class="info-row">
+                                <td class="info-label">Status</td>
+                                <td class="info-value"><span class="status-badge pending" id="leaseStatus">Pending</span></td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="table-container" style="margin-top: 20px;">
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th colspan="2">SEP-10 Authentication</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr class="info-row">
+                                <td class="info-label">Stellar Account</td>
+                                <td class="info-value">
+                                    <input type="text" id="sep10Account" placeholder="G..." style="width: 100%; padding: 6px; border: 1px solid #808080; font-family: monospace;">
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="table-container" style="margin-top: 20px;">
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th colspan="2">SEP-12 KYC Information</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr class="info-row">
+                                <td class="info-label">First Name</td>
+                                <td class="info-value">
+                                    <input type="text" id="kycFirstName" placeholder="John" style="width: 100%; padding: 6px; border: 1px solid #808080;">
+                                </td>
+                            </tr>
+                            <tr class="info-row">
+                                <td class="info-label">Last Name</td>
+                                <td class="info-value">
+                                    <input type="text" id="kycLastName" placeholder="Doe" style="width: 100%; padding: 6px; border: 1px solid #808080;">
+                                </td>
+                            </tr>
+                            <tr class="info-row">
+                                <td class="info-label">Email</td>
+                                <td class="info-value">
+                                    <input type="email" id="kycEmail" placeholder="john.doe@example.com" style="width: 100%; padding: 6px; border: 1px solid #808080;">
+                                </td>
+                            </tr>
+                            <tr class="info-row">
+                                <td class="info-label">Phone</td>
+                                <td class="info-value">
+                                    <input type="tel" id="kycPhone" placeholder="+1-555-123-4567" style="width: 100%; padding: 6px; border: 1px solid #808080;">
+                                </td>
+                            </tr>
+                            <tr class="info-row">
+                                <td class="info-label">Date of Birth</td>
+                                <td class="info-value">
+                                    <input type="date" id="kycDOB" style="width: 100%; padding: 6px; border: 1px solid #808080;">
+                                </td>
+                            </tr>
+                            <tr class="info-row">
+                                <td class="info-label">ID Type</td>
+                                <td class="info-value">
+                                    <select id="kycIDType" style="width: 100%; padding: 6px; border: 1px solid #808080;">
+                                        <option value="">Select...</option>
+                                        <option value="drivers_license">Driver's License</option>
+                                        <option value="passport">Passport</option>
+                                        <option value="national_id">National ID</option>
+                                    </select>
+                                </td>
+                            </tr>
+                            <tr class="info-row">
+                                <td class="info-label">ID Number</td>
+                                <td class="info-value">
+                                    <input type="text" id="kycIDNumber" placeholder="DL123456789" style="width: 100%; padding: 6px; border: 1px solid #808080;">
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <div style="margin-top: 15px;">
+                    <button class="btn-primary" onclick="runPayRent()" id="btnPay">Execute Payment & Activation</button>
+                </div>
+                <div class="result-panel" id="resultPayment"></div>
+            </div>
+
+            <div class="tab-content" id="tab-utilities">
+                <div class="table-container" style="margin-bottom: 15px;">
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>Utility Readings</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>
+                                    <strong>Electricity:</strong> 320 kWh<br>
+                                    <strong>Gas:</strong> 14 units<br>
+                                    <strong>Water:</strong> 6,800 units
+                                </td>
+                                <td>
+                                    <button class="btn-primary" onclick="fetchUtilities()" id="btnFetchUtils">Fetch Readings</button>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="result-panel" id="resultReading"></div>
+
+                <div style="margin-top: 15px;">
+                    <button class="btn-primary" onclick="calculateSplit()" id="btnSplit">Calculate Cost Split</button>
+                </div>
+                <div class="result-panel" id="resultSplit"></div>
+            </div>
+
+            <div class="tab-content" id="tab-tree">
+                <div style="margin-top: 15px;">
+                    <button class="btn-primary" onclick="loadLeaseTree()" id="btnLoadTree">Load Tree</button>
+                </div>
+                <div class="result-panel" id="resultTree"></div>
+            </div>
+        </main>
+    </div>
+
+    <script src="/static/script.js"></script>
+</body>
+</html>
